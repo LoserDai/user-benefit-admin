@@ -87,7 +87,7 @@
           <template #header>
             <span>最近订单</span>
           </template>
-          <el-table :data="recentOrders" stripe>
+          <el-table :data="recentOrders" stripe border>
             <el-table-column prop="orderNo" label="订单号" width="120" />
             <el-table-column prop="userName" label="用户名" width="100" />
             <el-table-column prop="benefitName" label="权益商品" />

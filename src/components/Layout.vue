@@ -17,14 +17,38 @@
         text-color="#bfcbd9"
         active-text-color="#409EFF"
       >
-        <el-menu-item 
-          v-for="route in menuRoutes" 
-          :key="route.path"
-          :index="route.path"
-          @click="handleMenuClick(route)"
-        >
-          <el-icon><component :is="route.meta.icon" /></el-icon>
-          <template #title>{{ route.meta.title }}</template>
+        <!-- 仪表盘 -->
+        <el-menu-item index="/dashboard">
+          <el-icon><Odometer /></el-icon>
+          <template #title>仪表盘</template>
+        </el-menu-item>
+        
+        <!-- 用户管理 -->
+        <el-menu-item index="/user">
+          <el-icon><User /></el-icon>
+          <template #title>用户管理</template>
+        </el-menu-item>
+        
+        <!-- 账户管理子菜单 - 放在用户管理下面 -->
+        <el-sub-menu index="/account">
+          <template #title>
+            <el-icon><Wallet /></el-icon>
+            <span>账户管理</span>
+          </template>
+          <el-menu-item index="/account/query">账户查询</el-menu-item>
+          <el-menu-item index="/account/transactions">收支明细</el-menu-item>
+        </el-sub-menu>
+        
+        <!-- 权益商品管理 -->
+        <el-menu-item index="/benefit">
+          <el-icon><Present /></el-icon>
+          <template #title>权益商品管理</template>
+        </el-menu-item>
+        
+        <!-- 订单管理 -->
+        <el-menu-item index="/order">
+          <el-icon><List /></el-icon>
+          <template #title>订单管理</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -54,11 +78,11 @@
               <span class="username">管理员</span>
             </span>
             <template #dropdown>
-                             <el-dropdown-menu>
-                 <el-dropdown-item>个人信息</el-dropdown-item>
-                 <el-dropdown-item>修改密码</el-dropdown-item>
-                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-               </el-dropdown-menu>
+              <el-dropdown-menu>
+                <el-dropdown-item>个人信息</el-dropdown-item>
+                <el-dropdown-item>修改密码</el-dropdown-item>
+                <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
@@ -95,14 +119,26 @@ const activeMenu = computed(() => route.path)
 const menuRoutes = [
   { path: '/dashboard', meta: { title: '仪表盘', icon: 'Odometer' } },
   { path: '/user', meta: { title: '用户管理', icon: 'User' } },
-  { path: '/account', meta: { title: '账户管理', icon: 'Wallet' } },
   { path: '/benefit', meta: { title: '权益商品管理', icon: 'Present' } },
   { path: '/order', meta: { title: '订单管理', icon: 'List' } }
 ]
 
 const currentPageTitle = computed(() => {
-  const currentRoute = menuRoutes.find(r => r.path === route.path)
-  return currentRoute ? currentRoute.meta.title : ''
+  // 处理二级菜单的标题显示
+  if (route.path.startsWith('/account/')) {
+    if (route.path === '/account/query') return '账户查询'
+    if (route.path === '/account/transactions') return '收支明细'
+  }
+  
+  // 根据当前路由路径返回标题
+  const titleMap = {
+    '/dashboard': '仪表盘',
+    '/user': '用户管理',
+    '/benefit': '权益商品管理',
+    '/order': '订单管理'
+  }
+  
+  return titleMap[route.path] || ''
 })
 
 const toggleSidebar = () => {
@@ -172,6 +208,22 @@ const handleLogout = () => {
 
 .sidebar-menu {
   border: none;
+}
+
+/* 子菜单样式 */
+.sidebar-menu .el-sub-menu .el-menu-item {
+  background-color: #263445 !important;
+  color: #bfcbd9 !important;
+}
+
+.sidebar-menu .el-sub-menu .el-menu-item:hover {
+  background-color: #1890ff !important;
+  color: #fff !important;
+}
+
+.sidebar-menu .el-sub-menu .el-menu-item.is-active {
+  background-color: #409EFF !important;
+  color: #fff !important;
 }
 
 .header {

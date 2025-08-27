@@ -58,7 +58,7 @@
 
     <!-- 订单列表 -->
     <el-card class="table-card">
-      <el-table :data="orderList" stripe v-loading="loading">
+      <el-table :data="orderList" stripe v-loading="loading" border>
         <el-table-column prop="orderNo" label="订单号" width="150" />
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="nickname" label="昵称" width="120" />

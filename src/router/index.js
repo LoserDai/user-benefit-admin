@@ -26,14 +26,28 @@ const routes = [
   {
     path: '/account',
     name: 'AccountManagement',
-    component: () => import('../views/AccountManagement.vue'),
-    meta: { title: '账户管理', icon: 'Wallet', requiresAuth: true }
+    redirect: '/account/query',
+    meta: { title: '账户管理', icon: 'Wallet', requiresAuth: true },
+    children: [
+      {
+        path: 'query',
+        name: 'AccountQuery',
+        component: () => import('../views/AccountQuery.vue'),
+        meta: { title: '账户查询', requiresAuth: true }
+      },
+      {
+        path: 'transactions',
+        name: 'AccountTransactions',
+        component: () => import('../views/AccountTransactions.vue'),
+        meta: { title: '收支明细', requiresAuth: true }
+      }
+    ]
   },
   {
     path: '/benefit',
     name: 'BenefitManagement',
     component: () => import('../views/BenefitManagement.vue'),
-    meta: { title: '权益商品管理', icon: 'Gift', requiresAuth: true }
+    meta: { title: '权益商品管理', icon: 'Present', requiresAuth: true }
   },
   {
     path: '/order',

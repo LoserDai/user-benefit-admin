@@ -50,34 +50,34 @@
 
     <!-- 用户列表 -->
     <el-card class="table-card">
-      <el-table :data="userList" stripe v-loading="loading">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="avatar" label="头像" width="80">
-          <template #default="scope">
-            <el-avatar :src="scope.row.avatar" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="username" label="用户名" width="120" />
-        <el-table-column prop="nickname" label="昵称" width="120" />
-        <el-table-column prop="phone" label="手机号" width="130" />
-        <el-table-column prop="email" label="邮箱" width="180" />
-        <el-table-column prop="userType" label="用户类型" width="100">
+      <el-table :data="userList" stripe v-loading="loading" border>
+        <el-table-column prop="id" label="ID" width="80" align="center" />
+        <el-table-column prop="username" label="用户名" width="120" align="center" />
+        <el-table-column prop="nickname" label="昵称" width="120" align="center" />
+        <el-table-column prop="phone" label="手机号" width="140" align="center" />
+        <el-table-column prop="email" label="邮箱" width="200" align="center" />
+        <el-table-column prop="userType" label="用户类型" width="120" align="center">
           <template #default="scope">
             <el-tag :type="getUserTypeTag(scope.row.userType)">
               {{ getUserTypeLabel(scope.row.userType) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="scope">
             <el-tag :type="getStatusTag(scope.row.status)">
               {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="注册时间" width="160" />
-        <el-table-column prop="lastLoginTime" label="最后登录" width="160" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="avatar" label="头像" width="100" align="center">
+          <template #default="scope">
+            <el-avatar :src="scope.row.avatar" />
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="注册时间" width="160" align="center" />
+        <el-table-column prop="lastLoginTime" label="最后登录" width="160" align="center" />
+        <el-table-column label="操作" width="220" align="center" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
             <el-button 
@@ -231,7 +231,7 @@ const userFormRules = {
 // 模拟用户数据
 const mockUsers = [
   {
-    id: 1,
+    id: 1234567890,
     username: 'zhangsan',
     nickname: '张三',
     phone: '13800138001',
@@ -243,7 +243,7 @@ const mockUsers = [
     lastLoginTime: '2024-01-15 15:30:00'
   },
   {
-    id: 2,
+    id: 2134567890,
     username: 'lisi',
     nickname: '李四',
     phone: '13800138002',
@@ -255,7 +255,7 @@ const mockUsers = [
     lastLoginTime: '2024-01-15 16:20:00'
   },
   {
-    id: 3,
+    id: 3124567890,
     username: 'wangwu',
     nickname: '王五',
     phone: '13800138003',

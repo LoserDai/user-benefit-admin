@@ -51,7 +51,7 @@
 
     <!-- 商品列表 -->
     <el-card class="table-card">
-      <el-table :data="benefitList" stripe v-loading="loading">
+      <el-table :data="benefitList" stripe v-loading="loading" border>
         <el-table-column prop="id" label="商品ID" width="100" />
         <el-table-column prop="image" label="商品图片" width="100">
           <template #default="scope">
