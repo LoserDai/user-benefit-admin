@@ -14,10 +14,10 @@
         class="login-form"
         @keyup.enter="handleLogin"
       >
-        <el-form-item prop="username">
+        <el-form-item prop="account">
           <el-input
-            v-model="loginForm.username"
-            placeholder="请输入用户名"
+            v-model="loginForm.account"
+            placeholder="请输入账号"
             size="large"
             :prefix-icon="User"
           />
@@ -47,9 +47,7 @@
         </el-form-item>
       </el-form>
       
-      <div class="login-footer">
-        <p class="tips">默认账号：admin / 123456</p>
-      </div>
+
     </div>
   </div>
 </template>
@@ -64,14 +62,14 @@ const router = useRouter()
 
 // 登录表单
 const loginForm = reactive({
-  username: '',
+  account: '',
   password: ''
 })
 
 // 表单验证规则
 const loginFormRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+  account: [
+    { required: true, message: '请输入账号', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -89,28 +87,68 @@ const handleLogin = async () => {
     await loginFormRef.value.validate()
     loading.value = true
     
-    // 模拟登录API调用
-    setTimeout(() => {
-      // 这里应该是真实的登录验证逻辑
-      if (loginForm.username === 'admin' && loginForm.password === '123456') {
-        // 登录成功，保存登录状态
-        localStorage.setItem('isLoggedIn', 'true')
-        localStorage.setItem('userInfo', JSON.stringify({
-          username: loginForm.username,
-          nickname: '管理员',
-          avatar: 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
-        }))
-        
-        ElMessage.success('登录成功')
-        router.push('/dashboard')
-      } else {
-        ElMessage.error('用户名或密码错误')
+    // 调用后端登录接口
+    try {
+      const { adminLogin } = await import('@/api/user')
+             const response = await adminLogin({
+         account: loginForm.account,
+         password: loginForm.password
+       })
+      
+             // 根据后端返回的数据结构处理
+       if (response.data && response.data.code === 200 && response.data.data) {
+         // 登录成功，保存登录状态
+         localStorage.setItem('isLoggedIn', 'true')
+         
+         // 调用获取当前用户信息接口
+         try {
+           const { getCurrentUser } = await import('@/api/user')
+           const userResponse = await getCurrentUser()
+           
+           if (userResponse.code === 200 && userResponse.data) {
+             // 保存完整的用户信息
+             localStorage.setItem('userInfo', JSON.stringify({
+               username: userResponse.data.account || loginForm.account,
+               nickname: userResponse.data.nickname || '管理员',
+               avatar: userResponse.data.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png',
+               // 可以添加更多用户信息字段
+               userId: userResponse.data.id,
+               email: userResponse.data.email,
+               phone: userResponse.data.phone,
+               role: userResponse.data.role
+             }))
+           } else {
+             // 如果获取用户信息失败，使用登录接口返回的基本信息
+             localStorage.setItem('userInfo', JSON.stringify({
+               username: response.data.data.account || loginForm.account,
+               nickname: response.data.data.nickname || '管理员',
+               avatar: response.data.data.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+             }))
+           }
+         } catch (userError) {
+           console.error('获取用户信息失败:', userError)
+           // 如果获取用户信息失败，使用登录接口返回的基本信息
+           localStorage.setItem('userInfo', JSON.stringify({
+             username: response.data.data.account || loginForm.account,
+             nickname: response.data.data.nickname || '管理员',
+             avatar: response.data.data.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+           }))
+         }
+         
+         ElMessage.success('登录成功')
+         router.push('/dashboard')
+       } else {
+                 ElMessage.error(response.data?.message || '登录失败，请检查用户名和密码')
       }
-      loading.value = false
-    }, 1000)
+    } catch (apiError) {
+      console.error('API调用失败:', apiError)
+      ElMessage.error('网络错误，请稍后重试')
+    }
     
   } catch (error) {
     console.error('表单验证失败:', error)
+  } finally {
+    loading.value = false
   }
 }
 </script>

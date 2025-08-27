@@ -71,33 +71,74 @@
           </el-breadcrumb>
         </div>
         
-        <div class="header-right">
-          <el-dropdown>
-            <span class="user-info">
-              <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
-              <span class="username">管理员</span>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item>个人信息</el-dropdown-item>
-                <el-dropdown-item>修改密码</el-dropdown-item>
-                <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
+                 <div class="header-right">
+           <el-dropdown>
+             <span class="user-info">
+               <el-avatar :size="32" :src="userInfo.avatar" />
+               <span class="username">{{ userInfo.nickname }}</span>
+             </span>
+             <template #dropdown>
+               <el-dropdown-menu>
+                 <el-dropdown-item @click="showUserProfile">个人信息</el-dropdown-item>
+                 <el-dropdown-item>修改密码</el-dropdown-item>
+                 <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+               </el-dropdown-menu>
+             </template>
+           </el-dropdown>
+         </div>
       </el-header>
 
-      <!-- 内容区域 -->
-      <el-main class="main-content">
-        <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
-</template>
+             <!-- 内容区域 -->
+       <el-main class="main-content">
+         <router-view />
+       </el-main>
+     </el-container>
+   </el-container>
+
+   <!-- 个人信息对话框 -->
+   <el-dialog
+     v-model="userProfileVisible"
+     title="个人信息"
+     width="600px"
+     :close-on-click-modal="false"
+   >
+     <div v-loading="profileLoading">
+       <el-descriptions :column="2" border v-if="currentUserProfile">
+         <el-descriptions-item label="用户ID">{{ currentUserProfile.id }}</el-descriptions-item>
+         <el-descriptions-item label="账号">{{ currentUserProfile.account }}</el-descriptions-item>
+                   <el-descriptions-item label="性别">{{ getGenderLabel(currentUserProfile.gender) }}</el-descriptions-item>
+         <el-descriptions-item label="邮箱">{{ currentUserProfile.email || '未设置' }}</el-descriptions-item>
+         <el-descriptions-item label="手机号">{{ currentUserProfile.phone || '未设置' }}</el-descriptions-item>
+         <el-descriptions-item label="角色">{{ currentUserProfile.role || '管理员' }}</el-descriptions-item>
+         <el-descriptions-item label="状态">
+           <el-tag :type="currentUserProfile.status === 'ACTIVE' ? 'success' : 'danger'">
+             {{ currentUserProfile.status === 'ACTIVE' ? '正常' : '禁用' }}
+           </el-tag>
+         </el-descriptions-item>
+         <el-descriptions-item label="创建时间">{{ currentUserProfile.createTime || '未知' }}</el-descriptions-item>
+         <el-descriptions-item label="修改时间">{{ currentUserProfile.updateTime || '未知' }}</el-descriptions-item>
+         <el-descriptions-item label="头像" :span="2">
+           <el-avatar 
+             :size="80" 
+             :src="currentUserProfile.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'" 
+           />
+         </el-descriptions-item>
+       </el-descriptions>
+       
+       <div v-else-if="!profileLoading" class="no-data">
+         <el-empty description="暂无用户信息" />
+       </div>
+     </div>
+     
+     <template #footer>
+       <el-button @click="userProfileVisible = false">关闭</el-button>
+       <el-button type="primary" @click="refreshUserProfile">刷新</el-button>
+     </template>
+   </el-dialog>
+ </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   Odometer, 
@@ -115,6 +156,18 @@ const router = useRouter()
 
 const isCollapse = ref(false)
 const activeMenu = computed(() => route.path)
+
+// 用户信息
+const userInfo = ref({
+  username: '管理员',
+  nickname: '管理员', // 这个会在fetchCurrentUser中被更新为account
+  avatar: 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+})
+
+// 个人信息对话框相关
+const userProfileVisible = ref(false)
+const profileLoading = ref(false)
+const currentUserProfile = ref(null)
 
 const menuRoutes = [
   { path: '/dashboard', meta: { title: '仪表盘', icon: 'Odometer' } },
@@ -149,25 +202,121 @@ const handleMenuClick = (route) => {
   router.push(route.path)
 }
 
-// 退出登录
-const handleLogout = () => {
-  ElMessageBox.confirm(
-    '确定要退出登录吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    // 清除登录状态
-    localStorage.removeItem('isLoggedIn')
-    localStorage.removeItem('userInfo')
-    
-    ElMessage.success('退出成功')
-    router.push('/login')
-  })
+// 性别映射函数
+const getGenderLabel = (gender) => {
+  if (gender === 1) return '男性'
+  if (gender === 0) return '女性'
+  if (gender !== null && gender !== undefined) return 'Alien'
+  return '未设置'
 }
+
+// 获取当前用户信息
+const fetchCurrentUser = async () => {
+  try {
+    const { getCurrentUser } = await import('@/api/user')
+    const response = await getCurrentUser()
+    
+    if (response.code === 200 && response.data) {
+      userInfo.value = {
+        username: response.data.account || '管理员',
+        nickname: response.data.account || '管理员', // 使用account作为显示名称
+        avatar: response.data.avatar || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+      }
+      
+      // 更新localStorage中的用户信息
+      localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+    }
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+    // 如果获取失败，尝试从localStorage读取
+    const storedUserInfo = localStorage.getItem('userInfo')
+    if (storedUserInfo) {
+      try {
+        const parsedInfo = JSON.parse(storedUserInfo)
+        userInfo.value = {
+          ...parsedInfo,
+          nickname: parsedInfo.username || parsedInfo.account || '管理员' // 优先使用username或account
+        }
+      } catch (e) {
+        console.error('解析用户信息失败:', e)
+      }
+    }
+  }
+}
+
+// 显示个人信息对话框
+const showUserProfile = async () => {
+  userProfileVisible.value = true
+  await refreshUserProfile()
+}
+
+// 刷新用户个人信息
+const refreshUserProfile = async () => {
+  profileLoading.value = true
+  try {
+    const { getCurrentUser } = await import('@/api/user')
+    const response = await getCurrentUser()
+    
+    if (response.code === 200 && response.data) {
+      currentUserProfile.value = response.data
+    } else {
+      ElMessage.error(response.message || '获取用户信息失败')
+    }
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+    ElMessage.error('获取用户信息失败，请稍后重试')
+  } finally {
+    profileLoading.value = false
+  }
+}
+
+// 退出登录
+const handleLogout = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要退出登录吗？',
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // 调用后端登出接口
+    try {
+      const { userLogout } = await import('@/api/user')
+      const response = await userLogout()
+      
+      if (response.code === 200) {
+        // 登出成功，清除本地状态
+        localStorage.removeItem('isLoggedIn')
+        localStorage.removeItem('userInfo')
+        
+        ElMessage.success('退出成功')
+        router.push('/login')
+      } else {
+        ElMessage.error(response.message || '退出失败')
+      }
+    } catch (apiError) {
+      console.error('调用登出接口失败:', apiError)
+      // 即使接口调用失败，也要清除本地状态
+      localStorage.removeItem('isLoggedIn')
+      localStorage.removeItem('userInfo')
+      
+      ElMessage.warning('退出成功（本地状态已清除）')
+      router.push('/login')
+    }
+  } catch (cancelError) {
+    // 用户取消退出
+    console.log('用户取消退出登录')
+  }
+}
+
+// 组件挂载时获取用户信息
+onMounted(() => {
+  fetchCurrentUser()
+})
 </script>
 
 <style scoped>
@@ -283,5 +432,24 @@ const handleLogout = () => {
 .el-main {
   height: calc(100vh - 60px);
   overflow-y: auto;
+}
+
+/* 个人信息对话框样式 */
+.no-data {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.el-descriptions {
+  margin-bottom: 20px;
+}
+
+.el-descriptions__label {
+  font-weight: 600;
+  color: #606266;
+}
+
+.el-descriptions__content {
+  color: #303133;
 }
 </style>
