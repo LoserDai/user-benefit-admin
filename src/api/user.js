@@ -78,4 +78,18 @@ export const queryOrderMain = (request) => {
   return api.post('/orderMain/queryOrderMain', request)
 }
 
+// 分页查询用户列表
+// UserRequest: 用户查询参数
+// PageResult<UserVo>: 分页结果
+export const pageQueryUser = (request) => {
+  return api.post('/user/pageQueryUser', request)
+}
+
+// 删除用户
+// User: 用户信息（只需要id）
+// BaseResponse<Integer>: 删除结果
+export const deleteUser = (user) => {
+  return api.post('/user/delete', user)
+}
+
 export default api
