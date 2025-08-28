@@ -92,4 +92,18 @@ export const deleteUser = (user) => {
   return api.post('/user/delete', user)
 }
 
+// 更新用户
+// User: 用户信息
+// BaseResponse<Integer>: 更新结果
+export const updateUser = (user) => {
+  return api.post('/user/update', user)
+}
+
+// 用户注册
+// UserRegisterRequest: 用户注册请求
+// BaseResponse<User>: 注册结果
+export const userRegister = (userRegisterRequest) => {
+  return api.post('/user/register', userRegisterRequest)
+}
+
 export default api

@@ -38,7 +38,7 @@
         <el-col :span="3">
           <el-select v-model="searchForm.status" placeholder="状态" clearable>
             <el-option label="正常" value="ACTIVE" />
-            <el-option label="禁用" value="INACTIVE" />
+            <el-option label="未激活" value="INACTIVE" />
             <el-option label="过期" value="EXPIRED" />
             <el-option label="已删除" value="DELETED" />
           </el-select>
@@ -100,7 +100,7 @@
              {{ formatDateTime(scope.row.createTime) }}
            </template>
          </el-table-column>
-         <el-table-column label="操作" width="220" align="center" fixed="right">
+         <el-table-column label="操作" width="150" align="center" fixed="right">
            <template #default="scope">
              <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
              <el-button 
@@ -108,13 +108,6 @@
                type="danger" 
                @click="handleDelete(scope.row)"
              >删除</el-button>
-             <el-button 
-               size="small" 
-               :type="scope.row.status === 'ACTIVE' ? 'warning' : 'success'"
-               @click="handleToggleStatus(scope.row)"
-             >
-               {{ scope.row.status === 'ACTIVE' ? '禁用' : '启用' }}
-             </el-button>
            </template>
          </el-table-column>
        </el-table>
@@ -140,45 +133,48 @@
       width="600px"
       @close="handleDialogClose"
     >
-      <el-form
-        ref="userFormRef"
-        :model="userForm"
-        :rules="userFormRules"
-        label-width="100px"
-      >
-                 <el-form-item label="账号" prop="account">
+             <el-form
+         ref="userFormRef"
+         :model="userForm"
+         :rules="userFormRules"
+         label-width="100px"
+       >
+         <el-form-item label="账号" prop="account">
            <el-input v-model="userForm.account" placeholder="请输入账号" />
          </el-form-item>
-         <el-form-item label="手机号" prop="phone">
-          <el-input v-model="userForm.phone" placeholder="请输入手机号" />
-        </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="userForm.email" placeholder="请输入邮箱" />
-        </el-form-item>
-        <el-form-item label="性别" prop="gender">
-          <el-select v-model="userForm.gender" placeholder="请选择性别">
-            <el-option label="男" :value="1" />
-            <el-option label="女" :value="0" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="角色" prop="userRole">
-          <el-select v-model="userForm.userRole" placeholder="请选择角色">
-            <el-option label="普通用户" :value="0" />
-            <el-option label="管理员" :value="1" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态" prop="status">
-          <el-select v-model="userForm.status" placeholder="请选择状态">
-            <el-option label="正常" value="ACTIVE" />
-            <el-option label="禁用" value="INACTIVE" />
-            <el-option label="过期" value="EXPIRED" />
-            <el-option label="已删除" value="DELETED" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="!userForm.id">
-          <el-input v-model="userForm.password" type="password" placeholder="请输入密码" />
-        </el-form-item>
-      </el-form>
+         <el-form-item label="手机号" prop="phone" v-if="userForm.id">
+           <el-input v-model="userForm.phone" placeholder="请输入手机号" />
+         </el-form-item>
+         <el-form-item label="邮箱" prop="email" v-if="userForm.id">
+           <el-input v-model="userForm.email" placeholder="请输入邮箱" />
+         </el-form-item>
+         <el-form-item label="性别" prop="gender" v-if="userForm.id">
+           <el-select v-model="userForm.gender" placeholder="请选择性别">
+             <el-option label="男" :value="1" />
+             <el-option label="女" :value="0" />
+           </el-select>
+         </el-form-item>
+         <el-form-item label="角色" prop="userRole" v-if="userForm.id">
+           <el-select v-model="userForm.userRole" placeholder="请选择角色">
+             <el-option label="普通用户" :value="0" />
+             <el-option label="管理员" :value="1" />
+           </el-select>
+         </el-form-item>
+         <el-form-item label="状态" prop="status" v-if="userForm.id">
+           <el-select v-model="userForm.status" placeholder="请选择状态">
+             <el-option label="正常" value="ACTIVE" />
+             <el-option label="未激活" value="INACTIVE" />
+             <el-option label="过期" value="EXPIRED" />
+             <el-option label="已删除" value="DELETED" />
+           </el-select>
+         </el-form-item>
+         <el-form-item label="密码" prop="password" v-if="!userForm.id">
+           <el-input v-model="userForm.password" type="password" placeholder="请输入密码" />
+         </el-form-item>
+         <el-form-item label="确认密码" prop="checkPassword" v-if="!userForm.id">
+           <el-input v-model="userForm.checkPassword" type="password" placeholder="请再次输入密码" />
+         </el-form-item>
+       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSubmit">确定</el-button>
@@ -191,7 +187,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
-import { pageQueryUser, deleteUser } from '@/api/user'
+import { pageQueryUser, deleteUser, updateUser, userRegister } from '@/api/user'
 
 // 搜索表单
 const searchForm = reactive({
@@ -226,7 +222,8 @@ const userForm = reactive({
   gender: null,
   userRole: 0,
   status: 'ACTIVE',
-  password: ''
+  password: '',
+  checkPassword: ''
 })
 
 // 表单验证规则
@@ -255,6 +252,19 @@ const userFormRules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+  ],
+  checkPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== userForm.password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
   ]
 }
 
@@ -277,7 +287,7 @@ const getStatusTag = (status) => {
 const getStatusLabel = (status) => {
   const labelMap = {
     ACTIVE: '正常',
-    INACTIVE: '禁用',
+    INACTIVE: '未激活',
     EXPIRED: '过期',
     DELETED: '已删除'
   }
@@ -345,12 +355,8 @@ const handleAdd = () => {
   Object.assign(userForm, {
     id: '',
     account: '',
-    phone: '',
-    email: '',
-    gender: null,
-    userRole: 0,
-    status: 'ACTIVE',
-    password: ''
+    password: '',
+    checkPassword: ''
   })
   dialogVisible.value = true
 }
@@ -397,32 +403,51 @@ const handleDelete = (row) => {
   })
 }
 
-// 切换用户状态
-const handleToggleStatus = (row) => {
-  const action = row.status === 'ACTIVE' ? '禁用' : '启用'
-  ElMessageBox.confirm(
-    `确定要${action}用户 "${row.account}" 吗？`,
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    // 这里调用状态切换API
-    row.status = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-    ElMessage.success(`${action}成功`)
-  })
-}
+
 
 // 提交表单
 const handleSubmit = async () => {
   try {
     await userFormRef.value.validate()
-    // 这里调用保存API
-    ElMessage.success(userForm.id ? '更新成功' : '添加成功')
-    dialogVisible.value = false
-    loadUserList()
+    
+    if (userForm.id) {
+      // 编辑用户 - 调用更新接口
+      try {
+        const response = await updateUser(userForm)
+        if (response.code === 200) {
+          ElMessage.success('更新成功')
+          dialogVisible.value = false
+          loadUserList()
+        } else {
+          ElMessage.error(response.message || '更新失败')
+        }
+      } catch (error) {
+        console.error('更新用户失败:', error)
+        ElMessage.error('更新用户失败，请稍后重试')
+      }
+    } else {
+      // 添加用户 - 调用注册接口
+      try {
+        // 构建注册请求参数
+        const registerRequest = {
+          account: userForm.account,
+          password: userForm.password,
+          checkPassword: userForm.checkPassword
+        }
+        
+        const response = await userRegister(registerRequest)
+        if (response.code === 200) {
+          ElMessage.success('用户注册成功')
+          dialogVisible.value = false
+          loadUserList()
+        } else {
+          ElMessage.error(response.message || '用户注册失败')
+        }
+      } catch (error) {
+        console.error('用户注册失败:', error)
+        ElMessage.error('用户注册失败，请稍后重试')
+      }
+    }
   } catch (error) {
     console.error('表单验证失败:', error)
   }
@@ -431,6 +456,8 @@ const handleSubmit = async () => {
 // 对话框关闭
 const handleDialogClose = () => {
   userFormRef.value?.resetFields()
+  // 手动重置确认密码字段
+  userForm.checkPassword = ''
 }
 
 // 分页大小改变
