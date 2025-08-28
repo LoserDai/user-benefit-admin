@@ -53,4 +53,29 @@ export const userLogout = () => {
   return api.post('/user/logout')
 }
 
+// 获取用户注册统计数据（仪表盘）
+// UserDashVo: { registerDate: LocalDateTime, userCount: Integer }
+export const getUserRegisterCount = () => {
+  return api.get('/user/getUserRegisterCount')
+}
+
+// 获取订单统计数据（仪表盘）
+// OrderDashVo: { orderStatus: Integer, orderCount: Integer }
+export const getOrderCount = () => {
+  return api.get('/orderMain/getOrderCount')
+}
+
+// 获取仪表盘统计数据
+// DashVo: { userCount: Integer, productCount: Integer, orderMainCount: Integer, orderPointsCount: Integer }
+export const getCount = () => {
+  return api.post('/user/getCount')
+}
+
+// 查询订单列表
+// OrderMainRequest: 分页查询参数
+// PageResult<OrderMainVo>: 分页结果
+export const queryOrderMain = (request) => {
+  return api.post('/orderMain/queryOrderMain', request)
+}
+
 export default api
