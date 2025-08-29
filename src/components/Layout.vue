@@ -39,11 +39,16 @@
           <el-menu-item index="/account/transactions">收支明细</el-menu-item>
         </el-sub-menu>
         
-        <!-- 权益商品管理 -->
-        <el-menu-item index="/benefit">
-          <el-icon><Present /></el-icon>
-          <template #title>权益商品管理</template>
-        </el-menu-item>
+        <!-- 权益商品管理子菜单 -->
+        <el-sub-menu index="/benefit">
+          <template #title>
+            <el-icon><Present /></el-icon>
+            <span>权益商品管理</span>
+          </template>
+          <el-menu-item index="/benefit/products">权益产品管理</el-menu-item>
+          <el-menu-item index="/benefit/packages">权益包管理</el-menu-item>
+          <el-menu-item index="/benefit/activities">权益活动管理</el-menu-item>
+        </el-sub-menu>
         
         <!-- 订单管理 -->
         <el-menu-item index="/order">
@@ -67,6 +72,8 @@
           </el-button>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item>首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="route.path.startsWith('/benefit/')">权益商品管理</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="route.path.startsWith('/account/')">账户管理</el-breadcrumb-item>
             <el-breadcrumb-item>{{ currentPageTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -180,6 +187,13 @@ const currentPageTitle = computed(() => {
   if (route.path.startsWith('/account/')) {
     if (route.path === '/account/query') return '账户查询'
     if (route.path === '/account/transactions') return '收支明细'
+  }
+  
+  // 处理权益商品管理的子菜单标题显示
+  if (route.path.startsWith('/benefit/')) {
+    if (route.path === '/benefit/products') return '权益产品管理'
+    if (route.path === '/benefit/packages') return '权益包管理'
+    if (route.path === '/benefit/activities') return '权益活动管理'
   }
   
   // 根据当前路由路径返回标题

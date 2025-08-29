@@ -46,8 +46,28 @@ const routes = [
   {
     path: '/benefit',
     name: 'BenefitManagement',
-    component: () => import('../views/BenefitManagement.vue'),
-    meta: { title: '权益商品管理', icon: 'Present', requiresAuth: true }
+    redirect: '/benefit/products',
+    meta: { title: '权益商品管理', icon: 'Present', requiresAuth: true },
+    children: [
+      {
+        path: 'products',
+        name: 'BenefitProducts',
+        component: () => import('../views/BenefitProducts.vue'),
+        meta: { title: '权益产品管理', requiresAuth: true }
+      },
+      {
+        path: 'packages',
+        name: 'BenefitPackages',
+        component: () => import('../views/BenefitPackages.vue'),
+        meta: { title: '权益包管理', requiresAuth: true }
+      },
+      {
+        path: 'activities',
+        name: 'BenefitActivities',
+        component: () => import('../views/BenefitActivities.vue'),
+        meta: { title: '权益活动管理', requiresAuth: true }
+      }
+    ]
   },
   {
     path: '/order',
