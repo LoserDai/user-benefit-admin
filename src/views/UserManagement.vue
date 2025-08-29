@@ -184,7 +184,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { pageQueryUser, deleteUser, updateUser, userRegister } from '@/api/user'
@@ -226,47 +226,54 @@ const userForm = reactive({
   checkPassword: ''
 })
 
-// 表单验证规则
-const userFormRules = {
-  account: [
-    { required: true, message: '请输入账号', trigger: 'blur' },
-    { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
-  ],
-  phone: [
-    { required: true, message: '请输入手机号', trigger: 'blur' },
-    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-  ],
-  email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
-  ],
-  gender: [
-    { required: true, message: '请选择性别', trigger: 'change' }
-  ],
-  userRole: [
-    { required: true, message: '请选择角色', trigger: 'change' }
-  ],
-  status: [
-    { required: true, message: '请选择状态', trigger: 'change' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
-  ],
-  checkPassword: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
-    {
-      validator: (rule, value, callback) => {
-        if (value !== userForm.password) {
-          callback(new Error('两次输入的密码不一致'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
-  ]
+// 动态表单验证规则
+const getFormRules = () => {
+  const isEdit = !!userForm.id
+  
+  return {
+    account: [
+      { required: true, message: '请输入账号', trigger: 'blur' },
+      { min: 3, max: 20, message: '长度在 3 到 20 个字符', trigger: 'blur' }
+    ],
+    phone: [
+      { required: true, message: '请输入手机号', trigger: 'blur' },
+      { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+    ],
+    email: [
+      { required: true, message: '请输入邮箱', trigger: 'blur' },
+      { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+    ],
+    gender: [
+      { required: true, message: '请选择性别', trigger: 'change' }
+    ],
+    userRole: [
+      { required: true, message: '请选择角色', trigger: 'change' }
+    ],
+    status: [
+      { required: true, message: '请选择状态', trigger: 'change' }
+    ],
+    password: [
+      { required: !isEdit, message: '请输入密码', trigger: 'blur' },
+      { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    ],
+    checkPassword: [
+      { required: !isEdit, message: '请再次输入密码', trigger: 'blur' },
+      {
+        validator: (rule, value, callback) => {
+          if (value !== userForm.password) {
+            callback(new Error('两次输入的密码不一致'))
+          } else {
+            callback()
+          }
+        },
+        trigger: 'blur'
+      }
+    ]
+  }
 }
+
+// 表单验证规则
+const userFormRules = computed(() => getFormRules())
 
 
 
@@ -372,6 +379,11 @@ const handleEdit = (row) => {
   if (userData.gender !== null && userData.gender !== undefined) {
     userData.gender = parseInt(userData.gender)
   }
+  
+  // 调试日志：检查原始数据
+  console.log('编辑用户原始数据:', row)
+  console.log('处理后的数据:', userData)
+  
   Object.assign(userForm, userData)
   dialogVisible.value = true
 }
@@ -413,7 +425,24 @@ const handleSubmit = async () => {
     if (userForm.id) {
       // 编辑用户 - 调用更新接口
       try {
-        const response = await updateUser(userForm)
+        // 构建更新请求参数，排除不需要的字段
+        const updateRequest = {
+          id: userForm.id,
+          account: userForm.account,
+          phone: userForm.phone,
+          email: userForm.email,
+          gender: userForm.gender,
+          userRole: userForm.userRole,
+          status: userForm.status
+          // 注意：更新时不传递 password 和 checkPassword 字段
+        }
+        
+        // 调试日志：检查状态字段
+        console.log('更新用户请求参数:', updateRequest)
+        console.log('状态字段值:', updateRequest.status)
+        console.log('状态字段类型:', typeof updateRequest.status)
+        
+        const response = await updateUser(updateRequest)
         if (response.code === 200) {
           ElMessage.success('更新成功')
           dialogVisible.value = false
