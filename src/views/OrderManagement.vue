@@ -25,14 +25,7 @@
             <el-option label="已退款" value="refunded" />
           </el-select>
         </el-col>
-        <el-col :span="4">
-          <el-select v-model="searchForm.paymentMethod" placeholder="支付方式" clearable>
-            <el-option label="支付宝" value="alipay" />
-            <el-option label="微信支付" value="wechat" />
-            <el-option label="银行卡" value="bank" />
-            <el-option label="余额支付" value="balance" />
-          </el-select>
-        </el-col>
+
         <el-col :span="6">
           <el-date-picker
             v-model="searchForm.dateRange"
@@ -68,11 +61,7 @@
             <span class="order-amount">¥{{ scope.row.amount.toFixed(2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="paymentMethod" label="支付方式" width="100">
-          <template #default="scope">
-            <el-tag>{{ getPaymentMethodLabel(scope.row.paymentMethod) }}</el-tag>
-          </template>
-        </el-table-column>
+
         <el-table-column prop="status" label="订单状态" width="100">
           <template #default="scope">
             <el-tag :type="getStatusTag(scope.row.status)">
@@ -139,7 +128,7 @@
         <el-descriptions-item label="昵称">{{ selectedOrder.nickname }}</el-descriptions-item>
         <el-descriptions-item label="权益商品">{{ selectedOrder.benefitName }}</el-descriptions-item>
         <el-descriptions-item label="订单金额">¥{{ selectedOrder.amount?.toFixed(2) }}</el-descriptions-item>
-        <el-descriptions-item label="支付方式">{{ getPaymentMethodLabel(selectedOrder.paymentMethod) }}</el-descriptions-item>
+
         <el-descriptions-item label="订单状态">
           <el-tag :type="getStatusTag(selectedOrder.status)">
             {{ getStatusLabel(selectedOrder.status) }}
@@ -223,7 +212,6 @@ import { Search, Refresh } from '@element-plus/icons-vue'
 const searchForm = reactive({
   keyword: '',
   status: '',
-  paymentMethod: '',
   dateRange: []
 })
 
@@ -276,7 +264,6 @@ const mockOrders = [
     nickname: '张三',
     benefitName: 'VIP会员月卡',
     amount: 99.00,
-    paymentMethod: 'alipay',
     status: 'completed',
     createTime: '2024-01-15 10:00:00',
     payTime: '2024-01-15 10:05:00',
@@ -290,7 +277,6 @@ const mockOrders = [
     nickname: '李四',
     benefitName: '电影票券',
     amount: 35.00,
-    paymentMethod: 'wechat',
     status: 'paid',
     createTime: '2024-01-15 11:00:00',
     payTime: '2024-01-15 11:02:00',
@@ -304,7 +290,6 @@ const mockOrders = [
     nickname: '王五',
     benefitName: '咖啡券',
     amount: 25.00,
-    paymentMethod: 'balance',
     status: 'pending',
     createTime: '2024-01-15 12:00:00',
     payTime: null,
@@ -318,7 +303,6 @@ const mockOrders = [
     nickname: '赵六',
     benefitName: '购物券',
     amount: 50.00,
-    paymentMethod: 'bank',
     status: 'cancelled',
     createTime: '2024-01-15 13:00:00',
     payTime: null,
@@ -327,16 +311,7 @@ const mockOrders = [
   }
 ]
 
-// 获取支付方式标签文本
-const getPaymentMethodLabel = (method) => {
-  const labelMap = {
-    alipay: '支付宝',
-    wechat: '微信支付',
-    bank: '银行卡',
-    balance: '余额支付'
-  }
-  return labelMap[method] || method
-}
+
 
 // 获取状态标签
 const getStatusTag = (status) => {
@@ -375,7 +350,6 @@ const handleReset = () => {
   Object.assign(searchForm, {
     keyword: '',
     status: '',
-    paymentMethod: '',
     dateRange: []
   })
   handleSearch()
