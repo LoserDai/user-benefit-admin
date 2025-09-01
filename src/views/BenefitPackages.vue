@@ -107,18 +107,10 @@
           <template #default="scope">
             {{ formatTime(scope.row.createTime) }}
           </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+                </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button 
-              size="small" 
-              :type="scope.row.status === 'ACTIVE' ? 'warning' : 'success'"
-              @click="handleToggleStatus(scope.row)"
-            >
-              {{ scope.row.status === 'ACTIVE' ? '禁用' : '启用' }}
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -153,23 +145,41 @@
           <el-input v-model="packageForm.packageName" placeholder="请输入权益包名称" />
         </el-form-item>
                  <el-form-item label="权益包图片" prop="file">
-           <el-upload
-             ref="uploadRef"
-             :auto-upload="false"
-             :show-file-list="true"
-             :limit="1"
-             accept="image/*"
-             @change="handleFileChange"
-             @remove="handleFileRemove"
-           >
-             <el-button type="primary">选择图片</el-button>
-             <template #tip>
-               <div class="el-upload__tip">
-                 只能上传jpg/png文件，且不超过2MB
-               </div>
-             </template>
-           </el-upload>
-         </el-form-item>
+          <!-- 显示现有图片 -->
+          <div v-if="packageForm.imagePath && !packageForm.file" class="existing-image">
+            <div class="debug-info" style="font-size: 12px; color: #999; margin-bottom: 10px;">
+              调试信息: {{ packageForm.imagePath }} → {{ getImageUrl(packageForm.imagePath) }}
+            </div>
+            <el-image
+              :src="getImageUrl(packageForm.imagePath)"
+              style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px;"
+              fit="cover"
+              :preview-src-list="[getImageUrl(packageForm.imagePath)]"
+            />
+            <div class="image-info">
+              <span class="image-name">{{ packageForm.imagePath.split('/').pop() }}</span>
+              <el-button type="text" size="small" @click="removeExistingImage">移除现有图片</el-button>
+            </div>
+          </div>
+          
+          <!-- 文件上传组件 -->
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :show-file-list="true"
+            :limit="1"
+            accept="image/*"
+            @change="handleFileChange"
+            @remove="handleFileRemove"
+          >
+            <el-button type="primary">{{ packageForm.imagePath ? '更换图片' : '选择图片' }}</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                只能上传jpg/png文件，且不超过2MB
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
          <el-form-item label="权益产品" prop="productNames">
            <el-select
              v-model="packageForm.productNames"
@@ -273,7 +283,8 @@ const packageForm = reactive({
   price: 0,
   remark: '',
   createTime: null,
-  file: null
+  file: null,
+  imagePath: '' // 存储现有图片路径
 })
 
 // 权益产品选项
@@ -287,7 +298,16 @@ const packageFormRules = {
     { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
   ],
   file: [
-    { required: true, message: '请选择权益包图片', trigger: 'change' }
+    { 
+      validator: (rule, value, callback) => {
+        if (!value && !packageForm.imagePath) {
+          callback(new Error('请选择权益包图片'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'change' 
+    }
   ],
   productNames: [
     { required: true, message: '请选择权益产品', trigger: 'change' }
@@ -351,6 +371,7 @@ const groupPackageData = (data) => {
         price: item.price || 0,
         remark: item.remark || '',
         createTime: item.createTime || null,
+        imagePath: item.imagePath || item.packageImagePath || item.image || item.packageImage || '', // 添加图片路径
         productNames: [], // 存储权益产品名称列表
         products: []      // 存储完整的权益产品信息
       })
@@ -400,7 +421,8 @@ const groupPackageData = (data) => {
         packageName: item.packageName,
         productName: item.productName,
         productNames: item.productNames,
-        products: item.products
+        products: item.products,
+        imagePath: item.imagePath || item.packageImagePath || item.image || item.packageImage || ''
       })
     }
   })
@@ -473,7 +495,8 @@ const handleAdd = () => {
     price: 0,
     remark: '',
     createTime: null,
-    file: null
+    file: null,
+    imagePath: '' // 重置图片路径
   })
   // 重置文件上传组件
   if (uploadRef.value) {
@@ -489,54 +512,22 @@ const handleAdd = () => {
 // 编辑权益包
 const handleEdit = (row) => {
   dialogTitle.value = '编辑权益包'
-  Object.assign(packageForm, row)
+  console.log('编辑权益包数据:', row)
+  
+  // 尝试多种可能的图片路径字段
+  const imagePath = row.imagePath || row.packageImagePath || row.image || row.packageImage || ''
+  console.log('获取到的图片路径:', imagePath)
+  
+  Object.assign(packageForm, {
+    ...row,
+    imagePath: imagePath
+  })
+  
+  console.log('设置后的表单数据:', packageForm)
   dialogVisible.value = true
 }
 
-// 切换状态
-const handleToggleStatus = async (row) => {
-  try {
-    const newStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-    const action = newStatus === 'ACTIVE' ? '启用' : '禁用'
-    
-    await ElMessageBox.confirm(
-      `确定要${action}权益包"${row.packageName}"吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    // TODO: 调用后端API更新状态
-    row.status = newStatus
-    ElMessage.success(`${action}成功`)
-  } catch (error) {
-    // 用户取消操作
-  }
-}
 
-// 删除权益包
-const handleDelete = async (row) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除权益包"${row.packageName}"吗？此操作不可恢复！`,
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    // TODO: 调用后端API删除权益包
-    ElMessage.success('删除成功')
-    loadPackageList()
-  } catch (error) {
-    // 用户取消操作
-  }
-}
 
 // 文件选择处理
 const handleFileChange = (file) => {
@@ -546,6 +537,44 @@ const handleFileChange = (file) => {
 // 文件移除处理
 const handleFileRemove = () => {
   packageForm.file = null
+}
+
+// 获取图片URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) {
+    console.log('getImageUrl: 图片路径为空')
+    return ''
+  }
+  
+  console.log('getImageUrl 输入路径:', imagePath)
+  
+  // 如果已经是完整URL，直接返回
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    console.log('getImageUrl: 已经是完整URL，直接返回:', imagePath)
+    return imagePath
+  }
+  
+  // 清理路径，移除开头的斜杠和可能的 images 目录前缀
+  let finalPath = imagePath.replace(/^\/+/, '').replace(/^images\//, '')
+  
+  // 权益包图片保存在 /images/benefit-packages/ 路径下
+  // 如果路径不包含 benefit-packages，则自动添加
+  if (!finalPath.includes('benefit-packages')) {
+    finalPath = `benefit-packages/${finalPath}`
+  }
+  
+  const finalUrl = `http://localhost:8080/images/${finalPath}`
+  console.log('getImageUrl: 最终URL:', finalUrl)
+  return finalUrl
+}
+
+// 移除现有图片
+const removeExistingImage = () => {
+  packageForm.imagePath = ''
+  // 清空文件上传组件
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
 }
 
 // 加载权益产品选项
@@ -663,14 +692,32 @@ const handleSubmit = async () => {
 // 保存权益包
 const handleSavePackage = async () => {
   try {
-    if (!packageForm.file) {
+    // 检查是否有图片（新上传的文件或现有图片）
+    if (!packageForm.file && !packageForm.imagePath) {
       ElMessage.error('请选择权益包图片')
       return
     }
     
     // 构建FormData
     const formData = new FormData()
-    formData.append('file', packageForm.file)
+    
+    // 如果有新上传的文件，使用新文件
+    if (packageForm.file) {
+      formData.append('file', packageForm.file)
+    } else if (packageForm.imagePath) {
+      // 如果没有新文件但有现有图片，需要重新下载并上传
+      try {
+        const imageUrl = getImageUrl(packageForm.imagePath)
+        const response = await fetch(imageUrl)
+        const blob = await response.blob()
+        const fileName = packageForm.imagePath.split('/').pop() || 'package-image.jpg'
+        formData.append('file', blob, fileName)
+      } catch (error) {
+        console.error('下载现有图片失败:', error)
+        ElMessage.error('处理现有图片失败，请重新选择图片')
+        return
+      }
+    }
     
     // 构建请求参数
     const request = {
@@ -837,5 +884,39 @@ onMounted(() => {
   color: #909399;
   line-height: 1.2;
   margin-top: 5px;
+}
+
+.existing-image {
+  margin-bottom: 15px;
+  padding: 15px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background-color: #fafafa;
+}
+
+.image-info {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.image-name {
+  font-size: 12px;
+  color: #606266;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-info {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 10px;
+  font-family: monospace;
+  word-break: break-all;
 }
 </style>
