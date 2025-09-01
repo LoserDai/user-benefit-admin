@@ -145,22 +145,19 @@
           <el-input v-model="packageForm.packageName" placeholder="请输入权益包名称" />
         </el-form-item>
                  <el-form-item label="权益包图片" prop="file">
-          <!-- 显示现有图片 -->
-          <div v-if="packageForm.imagePath && !packageForm.file" class="existing-image">
-            <div class="debug-info" style="font-size: 12px; color: #999; margin-bottom: 10px;">
-              调试信息: {{ packageForm.imagePath }} → {{ getImageUrl(packageForm.imagePath) }}
-            </div>
-            <el-image
-              :src="getImageUrl(packageForm.imagePath)"
-              style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px;"
-              fit="cover"
-              :preview-src-list="[getImageUrl(packageForm.imagePath)]"
-            />
-            <div class="image-info">
-              <span class="image-name">{{ packageForm.imagePath.split('/').pop() }}</span>
-              <el-button type="text" size="small" @click="removeExistingImage">移除现有图片</el-button>
-            </div>
-          </div>
+                     <!-- 显示现有图片 -->
+           <div v-if="packageForm.imagePath && !packageForm.file" class="existing-image">
+             <el-image
+               :src="getImageUrl(packageForm.imagePath)"
+               style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px;"
+               fit="cover"
+               :preview-src-list="[getImageUrl(packageForm.imagePath)]"
+             />
+             <div class="image-info">
+               <span class="image-name">{{ packageForm.imagePath.split('/').pop() }}</span>
+               <el-button type="text" size="small" @click="removeExistingImage">移除现有图片</el-button>
+             </div>
+           </div>
           
           <!-- 文件上传组件 -->
           <el-upload
@@ -353,12 +350,10 @@ const groupPackageData = (data) => {
     return []
   }
   
-  console.log('开始处理权益包数据分组，原始数据:', data)
-  
   // 按权益包ID分组
   const packageMap = new Map()
   
-  data.forEach((item, index) => {
+  data.forEach((item) => {
     const packageId = item.id || item.packageId
     
     if (!packageMap.has(packageId)) {
@@ -413,18 +408,6 @@ const groupPackageData = (data) => {
         }
       })
     }
-    
-    // 调试信息
-    if (index < 3) { // 只显示前3条数据的详细信息
-      console.log(`处理第${index + 1}条数据:`, {
-        packageId,
-        packageName: item.packageName,
-        productName: item.productName,
-        productNames: item.productNames,
-        products: item.products,
-        imagePath: item.imagePath || item.packageImagePath || item.image || item.packageImage || ''
-      })
-    }
   })
   
   // 转换为数组并排序
@@ -438,7 +421,6 @@ const groupPackageData = (data) => {
     return (b.id || 0) - (a.id || 0)
   })
   
-  console.log('分组处理完成，结果:', result)
   return result
 }
 
@@ -512,18 +494,15 @@ const handleAdd = () => {
 // 编辑权益包
 const handleEdit = (row) => {
   dialogTitle.value = '编辑权益包'
-  console.log('编辑权益包数据:', row)
   
   // 尝试多种可能的图片路径字段
   const imagePath = row.imagePath || row.packageImagePath || row.image || row.packageImage || ''
-  console.log('获取到的图片路径:', imagePath)
   
   Object.assign(packageForm, {
     ...row,
     imagePath: imagePath
   })
   
-  console.log('设置后的表单数据:', packageForm)
   dialogVisible.value = true
 }
 
@@ -542,15 +521,11 @@ const handleFileRemove = () => {
 // 获取图片URL
 const getImageUrl = (imagePath) => {
   if (!imagePath) {
-    console.log('getImageUrl: 图片路径为空')
     return ''
   }
   
-  console.log('getImageUrl 输入路径:', imagePath)
-  
   // 如果已经是完整URL，直接返回
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    console.log('getImageUrl: 已经是完整URL，直接返回:', imagePath)
     return imagePath
   }
   
@@ -564,7 +539,6 @@ const getImageUrl = (imagePath) => {
   }
   
   const finalUrl = `http://localhost:8080/images/${finalPath}`
-  console.log('getImageUrl: 最终URL:', finalUrl)
   return finalUrl
 }
 
@@ -580,7 +554,6 @@ const removeExistingImage = () => {
 // 加载权益产品选项
 const loadProductOptions = async () => {
   try {
-    console.log('开始加载权益产品选项...')
     const { queryAllProduct } = await import('@/api/user')
     
     // 尝试不同的分页参数组合
@@ -590,21 +563,16 @@ const loadProductOptions = async () => {
       status: 'ACTIVE' // 只获取启用的产品
     }
     
-    console.log('请求参数:', requestParams)
     const response = await queryAllProduct(requestParams)
-    console.log('API响应:', response)
     
     if (response.code === 200 && response.data) {
       const products = response.data.data || response.data.records || []
       productOptions.value = products
-      console.log('加载权益产品选项成功，数量:', products.length)
     } else {
-      console.warn('获取权益产品列表响应异常:', response)
       // 尝试不带分页参数的请求
       await tryLoadProductsWithoutPagination()
     }
   } catch (error) {
-    console.error('获取权益产品列表失败:', error)
     // 尝试不带分页参数的请求
     await tryLoadProductsWithoutPagination()
   }
@@ -613,7 +581,6 @@ const loadProductOptions = async () => {
 // 尝试不带分页参数加载产品
 const tryLoadProductsWithoutPagination = async () => {
   try {
-    console.log('尝试不带分页参数加载产品...')
     const { queryAllProduct } = await import('@/api/user')
     const response = await queryAllProduct({
       status: 'ACTIVE'
@@ -622,14 +589,11 @@ const tryLoadProductsWithoutPagination = async () => {
     if (response.code === 200 && response.data) {
       const products = response.data.data || response.data.records || []
       productOptions.value = products
-      console.log('不带分页参数加载成功，数量:', products.length)
     } else {
-      console.warn('不带分页参数加载也失败:', response)
       productOptions.value = []
       ElMessage.error('获取权益产品列表失败')
     }
   } catch (error) {
-    console.error('不带分页参数加载失败:', error)
     productOptions.value = []
     ElMessage.error('获取权益产品列表失败')
   }
@@ -651,13 +615,10 @@ const handleProductSearch = async (query) => {
       if (response.code === 200 && response.data) {
         const products = response.data.data || response.data.records || []
         productOptions.value = products
-        console.log('搜索权益产品成功，数量:', products.length)
       } else {
-        console.warn('搜索权益产品响应异常:', response)
         productOptions.value = []
       }
     } catch (error) {
-      console.error('搜索权益产品失败:', error)
       productOptions.value = []
     } finally {
       productLoading.value = false
@@ -675,8 +636,7 @@ const handleSubmit = async () => {
     
     if (packageForm.id) {
       // 编辑模式
-      // TODO: 调用后端API更新权益包
-      ElMessage.success('更新成功')
+      await handleUpdatePackage()
     } else {
       // 新增模式
       await handleSavePackage()
@@ -748,6 +708,66 @@ const handleSavePackage = async () => {
   }
 }
 
+// 更新权益包
+const handleUpdatePackage = async () => {
+  try {
+    // 检查是否有图片（新上传的文件或现有图片）
+    if (!packageForm.file && !packageForm.imagePath) {
+      ElMessage.error('请选择权益包图片')
+      return
+    }
+    
+    // 构建FormData
+    const formData = new FormData()
+    
+    // 如果有新上传的文件，使用新文件
+    if (packageForm.file) {
+      formData.append('file', packageForm.file)
+    } else if (packageForm.imagePath) {
+      // 如果没有新文件但有现有图片，需要重新下载并上传
+      try {
+        const imageUrl = getImageUrl(packageForm.imagePath)
+        const response = await fetch(imageUrl)
+        const blob = await response.blob()
+        const fileName = packageForm.imagePath.split('/').pop() || 'package-image.jpg'
+        formData.append('file', blob, fileName)
+      } catch (error) {
+        console.error('下载现有图片失败:', error)
+        ElMessage.error('处理现有图片失败，请重新选择图片')
+        return
+      }
+    }
+    
+    // 构建请求参数
+    const request = {
+      id: packageForm.id,
+      packageName: packageForm.packageName,
+      price: packageForm.price,
+      productNames: packageForm.productNames,
+      remark: packageForm.remark,
+      quantity: packageForm.quantity,
+      status: packageForm.status
+    }
+    
+    // 将请求参数转换为Blob并添加到FormData
+    const requestBlob = new Blob([JSON.stringify(request)], { type: 'application/json' })
+    formData.append('request', requestBlob, 'request.json')
+    
+    // 调用后端接口
+    const { updatePackage } = await import('@/api/user')
+    const response = await updatePackage(formData)
+    
+    if (response.code === 200) {
+      ElMessage.success('更新权益包成功')
+    } else {
+      ElMessage.error(response.message || '更新权益包失败')
+    }
+  } catch (error) {
+    console.error('更新权益包失败:', error)
+    ElMessage.error('更新权益包失败，请稍后重试')
+  }
+}
+
 // 分页大小改变
 const handleSizeChange = (size) => {
   pagination.pageSize = size
@@ -764,57 +784,52 @@ const handleCurrentChange = (page) => {
 const loadPackageList = async () => {
   loading.value = true
   try {
-         // 构建请求参数
-     const request = {
-       id: searchForm.id || undefined,
-       packageName: searchForm.packageName || undefined,
-       productNames: searchForm.productNames.length > 0 ? searchForm.productNames : undefined,
-       status: searchForm.status,
-       quantity: searchForm.quantity,
-       price: searchForm.price,
-       pageNum: pagination.pageNum,
-       pageSize: pagination.pageSize
-     }
-    
-    // 移除undefined的字段
-    Object.keys(request).forEach(key => {
-      if (request[key] === undefined || request[key] === null || request[key] === '') {
-        delete request[key]
+          // 构建请求参数
+      const request = {
+        id: searchForm.id || undefined,
+        packageName: searchForm.packageName || undefined,
+        productNames: searchForm.productNames.length > 0 ? searchForm.productNames : undefined,
+        status: searchForm.status,
+        quantity: searchForm.quantity,
+        price: searchForm.price,
+        pageNum: pagination.pageNum,
+        pageSize: pagination.pageSize
       }
-    })
-    
-    // 调用后端接口
-    const { queryPackage } = await import('@/api/user')
-    const response = await queryPackage(request)
-    
-    if (response.code === 200 && response.data) {
-      // 后端返回的数据结构是 data.data，需要适配
-      const resultData = response.data.data || response.data.records || []
-      const total = response.data.total || 0
       
-      // 对数据进行分组处理，相同权益包ID的数据合并到同一行
-      const groupedData = groupPackageData(resultData)
+      // 移除undefined的字段
+      Object.keys(request).forEach(key => {
+        if (request[key] === undefined || request[key] === null || request[key] === '') {
+          delete request[key]
+        }
+      })
       
-      packageList.value = groupedData
-      pagination.total = total
+      // 调用后端接口
+      const { queryPackage } = await import('@/api/user')
+      const response = await queryPackage(request)
       
-      console.log('原始权益包数据:', resultData)
-      console.log('分组后的权益包数据:', groupedData)
-      console.log('总数:', total)
-    } else {
-      ElMessage.error(response.message || '获取权益包列表失败')
+      if (response.code === 200 && response.data) {
+        // 后端返回的数据结构是 data.data，需要适配
+        const resultData = response.data.data || response.data.records || []
+        const total = response.data.total || 0
+        
+        // 对数据进行分组处理，相同权益包ID的数据合并到同一行
+        const groupedData = groupPackageData(resultData)
+        
+        packageList.value = groupedData
+        pagination.total = total
+      } else {
+        ElMessage.error(response.message || '获取权益包列表失败')
+        packageList.value = []
+        pagination.total = 0
+      }
+    } catch (error) {
+      ElMessage.error('获取权益包列表失败，请稍后重试')
       packageList.value = []
       pagination.total = 0
+    } finally {
+      loading.value = false
     }
-  } catch (error) {
-    console.error('获取权益包列表失败:', error)
-    ElMessage.error('获取权益包列表失败，请稍后重试')
-    packageList.value = []
-    pagination.total = 0
-  } finally {
-    loading.value = false
   }
-}
 
 onMounted(() => {
   loadPackageList()

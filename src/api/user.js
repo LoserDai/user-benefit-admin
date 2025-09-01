@@ -186,4 +186,13 @@ export const savePackage = (formData) => {
   })
 }
 
+// 更新权益包
+// FormData: 包含文件和权益包信息的表单数据
+// BaseResponse<Integer>: 更新结果
+export const updatePackage = (formData) => {
+  return api.post('/package/updatePackage', formData, {
+    // 让浏览器自动设置multipart/form-data及boundary
+  })
+}
+
 export default api
