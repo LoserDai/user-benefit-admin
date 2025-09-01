@@ -167,6 +167,19 @@
            <el-input v-model="productForm.productName" placeholder="请输入产品名称" />
          </el-form-item>
          <el-form-item label="产品图片" prop="file">
+           <!-- 编辑时显示现有图片 -->
+           <div v-if="productForm.id && productForm.previewImageUrl && !productForm.file" class="existing-image">
+             <el-image
+               :src="productForm.previewImageUrl"
+               :preview-src-list="[productForm.previewImageUrl]"
+               fit="cover"
+               style="width: 100px; height: 100px; border-radius: 4px; margin-bottom: 10px;"
+             />
+             <div style="font-size: 12px; color: #909399; margin-bottom: 10px;">
+               当前图片（如需更换请上传新图片）
+             </div>
+           </div>
+           
            <el-upload
              ref="uploadRef"
              :auto-upload="false"
@@ -182,11 +195,17 @@
              <el-icon><Plus /></el-icon>
              <template #tip>
                <div class="el-upload__tip">
-                 只能上传jpg/png文件，且不超过2MB
+                 {{ productForm.id ? '上传新图片将替换当前图片，不选择则保持当前图片' : '只能上传jpg/png文件，且不超过2MB' }}
                </div>
              </template>
            </el-upload>
-           <!-- 调试信息 -->
+           
+                       <!-- 编辑时的提示信息 -->
+            <div v-if="productForm.id" style="margin-top: 8px; font-size: 12px; color: #909399;">
+              {{ productForm.file ? '已选择新图片，将替换当前图片' : '未选择新图片，将保持当前图片（自动下载上传）' }}
+            </div>
+           
+           <!-- 新增时的调试信息 -->
            <div v-if="!productForm.id" style="margin-top: 8px; font-size: 12px; color: #909399;">
              当前文件状态: {{ productForm.file ? '已选择' : '未选择' }}
            </div>
@@ -230,6 +249,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, Calendar } from '@element-plus/icons-vue'
+import { config } from '@/config'
 
 // 搜索表单
 const searchForm = reactive({
@@ -262,7 +282,8 @@ const productForm = reactive({
   price: 0,
   remark: '',
   status: 'ACTIVE',
-  file: null
+  file: null,
+  previewImageUrl: null // 用于编辑时显示现有图片
 })
 
 // 文件列表状态
@@ -284,7 +305,7 @@ const productFormRules = computed(() => {
     ]
   }
   
-  // 只在新增时要求上传文件
+  // 新增时要求上传文件
   if (!productForm.id) {
     rules.file = [
       { 
@@ -294,6 +315,22 @@ const productFormRules = computed(() => {
         validator: (rule, value, callback) => {
           if (!productForm.file) {
             callback(new Error('请选择产品图片'))
+          } else {
+            callback()
+          }
+        }
+      }
+    ]
+  } else {
+    // 编辑时要求有图片（新上传的或现有的）
+    rules.file = [
+      {
+        required: true,
+        message: '请选择产品图片或保持现有图片',
+        trigger: 'change',
+        validator: (rule, value, callback) => {
+          if (!productForm.file && !productForm.previewImageUrl) {
+            callback(new Error('请选择产品图片或保持现有图片'))
           } else {
             callback()
           }
@@ -327,6 +364,30 @@ const getStatusLabel = (status) => {
     'DELETED': '已删除'
   }
   return statusMap[status] || '未知'
+}
+
+// 获取图片URL（通用函数）
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return ''
+  
+  // 如果已经是完整的http URL格式，直接返回
+  if (imagePath.startsWith('http')) {
+    return imagePath
+  }
+  
+  // 如果是本地路径，转换为可访问的URL
+  if (imagePath.includes('\\') || imagePath.includes(':/')) {
+    const fileName = imagePath.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    return `http://localhost:8080/images/benefit-products/${fileName}`
+  }
+  
+  // 如果是相对路径，也转换为后端URL
+  if (imagePath.startsWith('/')) {
+    return `http://localhost:8080${imagePath}`
+  }
+  
+  return imagePath
 }
 
 
@@ -381,7 +442,8 @@ const handleAdd = () => {
     price: 0,
     remark: '',
     status: 'ACTIVE',
-    file: null
+    file: null,
+    previewImageUrl: null
   })
   // 清空文件上传组件和文件列表
   if (uploadRef.value) {
@@ -394,10 +456,22 @@ const handleAdd = () => {
 // 编辑产品
 const handleEdit = (row) => {
   dialogTitle.value = '编辑产品'
-  Object.assign(productForm, row)
+  
+  // 复制数据到表单
+  const formData = { ...row }
+  
+  // 处理图片路径：如果有productImagePath，设置预览图片URL
+  if (row.productImagePath) {
+    // 提取文件名，支持Windows和Unix路径分隔符
+    const fileName = row.productImagePath.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    formData.previewImageUrl = `http://localhost:8080/images/benefit-products/${fileName}`
+  }
+  
+  Object.assign(productForm, formData)
   // 编辑时不要求上传文件
   productForm.file = null
-  // 清空文件列表
+  // 清空文件列表，显示现有图片
   fileList.value = []
   dialogVisible.value = true
 }
@@ -428,7 +502,11 @@ const handleFileChange = (file, fileList) => {
     console.log('文件已设置到表单:', productForm.file)
     console.log('文件列表已更新:', fileList.value)
     
-    ElMessage.success('图片上传成功')
+    if (productForm.id) {
+      ElMessage.success('新图片已选择，将替换当前图片')
+    } else {
+      ElMessage.success('图片上传成功')
+    }
   } catch (error) {
     console.error('文件处理错误:', error)
     ElMessage.error('文件处理失败，请重试')
@@ -445,17 +523,29 @@ const handleFileChange = (file, fileList) => {
 const handleFileRemove = (file, fileList) => {
   console.log('文件被移除:', file, '剩余文件列表:', fileList)
   productForm.file = null
+  
   // 更新文件列表状态 - 确保 fileList 是数组
   if (Array.isArray(fileList)) {
     fileList.value = fileList
   } else {
     fileList.value = []
   }
+  
+  // 编辑时，如果移除了新选择的文件，提示用户
+  if (productForm.id && productForm.previewImageUrl) {
+    ElMessage.info('已移除新选择的图片，将保持现有图片')
+  }
 }
 
 // 检查文件是否已上传
 const hasFile = computed(() => {
   return productForm.file !== null && productForm.file !== undefined
+})
+
+// 检查编辑时是否有图片（新上传的或现有的）
+const hasImageForEdit = computed(() => {
+  if (!productForm.id) return true // 新增时不需要检查
+  return productForm.file !== null || productForm.previewImageUrl !== null
 })
 
 // 安全的文件类型检查
@@ -522,13 +612,17 @@ const handleSubmit = async () => {
       return
     }
     
+    // 编辑时验证：必须有图片（要么现有图片，要么新上传的图片）
+    if (productForm.id && !productForm.file && !productForm.previewImageUrl) {
+      ElMessage.error('请选择产品图片')
+      return
+    }
+    
     await productFormRef.value.validate()
     
     if (productForm.id) {
-      // 编辑产品 - TODO: 调用更新接口
-      ElMessage.success('更新成功')
-      dialogVisible.value = false
-      loadProductList()
+      // 编辑产品 - 调用更新接口
+      await handleUpdateProduct()
     } else {
       // 新增产品
       await handleInsertProduct()
@@ -569,19 +663,6 @@ const handleInsertProduct = async () => {
     const productRequestBlob = new Blob([JSON.stringify(productRequest)], { type: 'application/json' })
     formData.append('productRequest', productRequestBlob, 'productRequest.json')
     
-    
-    // 调试：打印FormData内容
-    console.log('FormData内容:')
-    for (let [key, value] of formData.entries()) {
-      console.log(`${key}:`, value)
-    }
-    
-    console.log('准备发送的数据:', {
-      file: file,
-      fileName: fileName,
-      productRequest: productRequest
-    })
-    
     // 调用后端接口
     const { insertProduct } = await import('@/api/user')
     const response = await insertProduct(formData)
@@ -596,6 +677,80 @@ const handleInsertProduct = async () => {
   } catch (error) {
     console.error('新增产品失败:', error)
     ElMessage.error('新增产品失败，请稍后重试')
+  }
+}
+
+// 更新产品
+const handleUpdateProduct = async () => {
+  try {
+    console.log('开始更新产品，产品ID:', productForm.id)
+    
+    // 构建FormData - 使用与新增产品相同的方式
+    const formData = new FormData()
+    
+    // 处理文件上传
+    if (productForm.file) {
+      // 如果有新上传的文件，使用新文件
+      const file = productForm.file
+      const fileName = file.name || 'product-image.jpg'
+      formData.append('file', file, fileName)
+      console.log('使用新上传的图片文件:', fileName)
+    } else if (productForm.previewImageUrl) {
+      // 如果没有新文件，需要从现有图片URL下载图片再上传
+      try {
+        console.log('下载现有图片:', productForm.previewImageUrl)
+        
+        // 从现有图片URL下载图片
+        const response = await fetch(productForm.previewImageUrl)
+        if (!response.ok) {
+          throw new Error(`下载图片失败: ${response.status}`)
+        }
+        
+        const blob = await response.blob()
+        // 从URL中提取文件名
+        const fileName = productForm.previewImageUrl.split('/').pop()
+        formData.append('file', blob, fileName)
+        console.log('成功下载并添加现有图片:', fileName)
+      } catch (downloadError) {
+        console.error('下载现有图片失败:', downloadError)
+        ElMessage.error('处理现有图片失败，请重新选择图片')
+        return
+      }
+    } else {
+      // 如果既没有新文件也没有现有图片，提示用户
+      ElMessage.error('请选择产品图片')
+      return
+    }
+    
+    // 构建产品请求参数 - 使用@RequestPart("product")
+    const productRequest = {
+      id: productForm.id,
+      productName: productForm.productName,
+      price: productForm.price,
+      remark: productForm.remark,
+      status: productForm.status
+    }
+    
+    // 将产品请求参数作为JSON字符串添加到FormData（以application/json的Blob传递，兼容@RequestPart）
+    const productRequestBlob = new Blob([JSON.stringify(productRequest)], { type: 'application/json' })
+    formData.append('product', productRequestBlob, 'product.json')
+    
+    console.log('更新产品请求参数:', productRequest)
+    
+    // 调用后端更新接口
+    const { updateProduct } = await import('@/api/user')
+    const response = await updateProduct(formData)
+    
+    if (response.code === 200) {
+      ElMessage.success('更新产品成功')
+      dialogVisible.value = false
+      loadProductList()
+    } else {
+      ElMessage.error(response.message || '更新产品失败')
+    }
+  } catch (error) {
+    console.error('更新产品失败:', error)
+    ElMessage.error('更新产品失败，请稍后重试')
   }
 }
 

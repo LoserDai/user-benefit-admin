@@ -133,6 +133,15 @@ export const insertProduct = (formData) => {
   })
 }
 
+// 更新产品
+// FormData: 包含文件和产品信息的表单数据
+// BaseResponse: 更新结果
+export const updateProduct = (formData) => {
+  return api.post('/product/updateProduct', formData, {
+    // 让浏览器自动设置multipart/form-data及boundary
+  })
+}
+
 // 用户注册
 // UserRegisterRequest: 用户注册请求
 // BaseResponse<User>: 注册结果

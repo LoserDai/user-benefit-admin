@@ -51,10 +51,6 @@
       <template #header>
         <div class="table-header">
           <span>交易记录</span>
-          <el-button type="primary" size="small" @click="handleExport">
-            <el-icon><Download /></el-icon>
-            导出数据
-          </el-button>
         </div>
       </template>
       
@@ -157,7 +153,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh, Download } from '@element-plus/icons-vue'
+import { Search, Refresh } from '@element-plus/icons-vue'
 import { queryAllPointTransaction } from '@/api/user'
 
 // 搜索表单
@@ -290,10 +286,7 @@ const handleViewDetails = (row) => {
   detailsDialogVisible.value = true
 }
 
-// 导出数据
-const handleExport = () => {
-  ElMessage.success('导出功能开发中...')
-}
+
 
 // 分页大小改变
 const handleSizeChange = (size) => {

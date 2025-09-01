@@ -56,8 +56,8 @@
         <el-table-column prop="image" label="商品图片" width="100">
           <template #default="scope">
             <el-image
-              :src="scope.row.image"
-              :preview-src-list="[scope.row.image]"
+              :src="getImageUrl(scope.row)"
+              :preview-src-list="[getImageUrl(scope.row)]"
               fit="cover"
               style="width: 60px; height: 60px; border-radius: 4px;"
             />
@@ -315,6 +315,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { config } from '@/config'
 
 // 搜索表单
 const searchForm = reactive({
@@ -382,7 +383,7 @@ const benefitFormRules = {
   ]
 }
 
-// 模拟商品数据
+// 模拟商品数据（包含productImagePath字段，模拟后端返回的数据结构）
 const mockBenefits = [
   {
     id: 'BEN001',
@@ -394,7 +395,7 @@ const mockBenefits = [
     stock: 1000,
     sales: 500,
     status: 'active',
-    image: 'https://via.placeholder.com/200x200/409EFF/FFFFFF?text=VIP',
+    productImagePath: 'D:\\code\\Java\\user-benefit-service\\images\\benefit-products\\vip-card.jpg', // 模拟后端路径
     description: '享受VIP专属权益，包括优先客服、专属活动、生日特权等',
     instructions: '购买后立即生效，有效期30天',
     createTime: '2024-01-01 10:00:00'
@@ -409,7 +410,7 @@ const mockBenefits = [
     stock: 500,
     sales: 200,
     status: 'active',
-    image: 'https://via.placeholder.com/200x200/67C23A/FFFFFF?text=Movie',
+    productImagePath: 'D:\\code\\Java\\user-benefit-service\\images\\benefit-products\\movie-ticket.jpg', // 模拟后端路径
     description: '全国通用电影票券，支持主流影院使用',
     instructions: '购买后7天内有效，请及时使用',
     createTime: '2024-01-02 11:00:00'
@@ -424,7 +425,7 @@ const mockBenefits = [
     stock: 800,
     sales: 300,
     status: 'inactive',
-    image: 'https://via.placeholder.com/200x200/E6A23C/FFFFFF?text=Coffee',
+    productImagePath: 'D:\\code\\Java\\user-benefit-service\\images\\benefit-products\\coffee-coupon.jpg', // 模拟后端路径
     description: '星巴克、瑞幸等主流咖啡品牌通用券',
     instructions: '购买后30天内有效，全国门店通用',
     createTime: '2024-01-03 12:00:00'
@@ -460,6 +461,37 @@ const getStatusLabel = (status) => {
     draft: '草稿'
   }
   return labelMap[status] || status
+}
+
+// 获取图片URL
+const getImageUrl = (row) => {
+  // 如果已经有处理过的image字段且是完整的http URL，直接返回
+  if (row.image && row.image.startsWith('http')) {
+    return row.image
+  }
+
+  // 如果有productImagePath字段，转换为可访问的URL
+  if (row.productImagePath) {
+    // 提取文件名，支持Windows和Unix路径分隔符
+    const fileName = row.productImagePath.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    return `http://localhost:8080/images/benefit-products/${fileName}`
+  }
+
+  // 如果image字段包含本地路径，也进行转换
+  if (row.image && (row.image.includes('\\') || row.image.includes(':/'))) {
+    const fileName = row.image.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    return `http://localhost:8080/images/benefit-products/${fileName}`
+  }
+
+  // 如果image字段是相对路径，转换为后端URL
+  if (row.image && row.image.startsWith('/')) {
+    return `http://localhost:8080${row.image}`
+  }
+
+  // 默认返回空字符串
+  return ''
 }
 
 // 搜索
@@ -502,13 +534,57 @@ const handleAdd = () => {
 // 编辑商品
 const handleEdit = (row) => {
   dialogTitle.value = '编辑商品'
-  Object.assign(benefitForm, { ...row })
+
+  // 复制数据到表单
+  const formData = { ...row }
+
+  // 处理图片路径：将productImagePath转换为可访问的URL
+  if (row.productImagePath) {
+    // 提取文件名，支持Windows和Unix路径分隔符
+    const fileName = row.productImagePath.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    formData.image = `http://localhost:8080/images/benefit-products/${fileName}`
+  } else if (row.image) {
+    // 如果image字段包含本地路径，进行转换
+    if (row.image.includes('\\') || row.image.includes(':/')) {
+      const fileName = row.image.replace(/\\/g, '/').split('/').pop()
+      // 确保使用后端端口8080
+      formData.image = `http://localhost:8080/images/benefit-products/${fileName}`
+    } else if (row.image.startsWith('/')) {
+      // 如果是相对路径，转换为完整URL
+      formData.image = `http://localhost:8080${row.image}`
+    } else if (row.image.startsWith('http')) {
+      // 如果已经是完整URL格式，直接使用
+      formData.image = row.image
+    }
+  }
+
+  Object.assign(benefitForm, formData)
   dialogVisible.value = true
 }
 
 // 查看商品
 const handleView = (row) => {
-  selectedBenefit.value = row
+  // 复制数据并处理图片路径
+  const detailData = { ...row }
+
+  // 处理图片路径：将productImagePath转换为可访问的URL
+  if (row.productImagePath) {
+    // 提取文件名，支持Windows和Unix路径分隔符
+    const fileName = row.productImagePath.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    detailData.image = `http://localhost:8080/images/benefit-products/${fileName}`
+  } else if (row.image && (row.image.includes('\\') || row.image.includes(':/'))) {
+    // 如果image字段包含本地路径，也进行转换
+    const fileName = row.image.replace(/\\/g, '/').split('/').pop()
+    // 确保使用后端端口8080
+    detailData.image = `http://localhost:8080/images/benefit-products/${fileName}`
+  } else if (row.image && row.image.startsWith('/')) {
+    // 如果是相对路径，转换为完整URL
+    detailData.image = `http://localhost:8080${row.image}`
+  }
+
+  selectedBenefit.value = detailData
   detailsDialogVisible.value = true
 }
 
