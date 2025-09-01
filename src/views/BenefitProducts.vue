@@ -565,8 +565,16 @@ const handleInsertProduct = async () => {
       status: productForm.status
     }
     
-    // 将产品请求参数作为JSON字符串添加到FormData
-    formData.append('productRequest', JSON.stringify(productRequest))
+    // 将产品请求参数作为JSON字符串添加到FormData（以application/json的Blob传递，兼容@RequestPart）
+    const productRequestBlob = new Blob([JSON.stringify(productRequest)], { type: 'application/json' })
+    formData.append('productRequest', productRequestBlob, 'productRequest.json')
+    
+    
+    // 调试：打印FormData内容
+    console.log('FormData内容:')
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}:`, value)
+    }
     
     console.log('准备发送的数据:', {
       file: file,

@@ -8,7 +8,16 @@ const api = axios.create({
   withCredentials: true, // 支持跨域Cookie
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  // 确保FormData正确处理
+  transformRequest: [function (data, headers) {
+    // 如果是FormData，不进行任何转换
+    if (data instanceof FormData) {
+      return data
+    }
+    // 其他数据转换为JSON
+    return JSON.stringify(data)
+  }]
 })
 
 // 请求拦截器
@@ -16,7 +25,11 @@ api.interceptors.request.use(
   config => {
     // 对于FormData请求，移除Content-Type让浏览器自动设置
     if (config.data instanceof FormData) {
+      // 完全移除Content-Type，让浏览器自动设置multipart/form-data和boundary
       delete config.headers['Content-Type']
+      delete config.headers['content-type']
+      // 确保FormData请求不会被错误地设置Content-Type
+      config.headers = config.headers || {}
     }
     
     // withCredentials: true 会自动处理Cookie，这里可以添加其他认证信息
@@ -115,7 +128,9 @@ export const queryAllProduct = (request) => {
 // FormData: 包含文件和产品信息的表单数据
 // BaseResponse: 新增结果
 export const insertProduct = (formData) => {
-  return api.post('/product/insertProduct', formData)
+  return api.post('/product/insertProduct', formData, {
+    // 让浏览器自动设置multipart/form-data及boundary
+  })
 }
 
 // 用户注册
