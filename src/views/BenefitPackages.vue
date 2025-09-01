@@ -16,18 +16,21 @@
           </el-input>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="searchForm.status" placeholder="权益包状态" clearable>
-            <el-option label="启用" :value="1" />
-            <el-option label="禁用" :value="0" />
+          <el-select v-model="searchForm.status" placeholder="状态" clearable>
+            <el-option label="启用" value="ACTIVE" />
+            <el-option label="禁用" value="INACTIVE" />
+            <el-option label="已过期" value="EXPIRED" />
+            <el-option label="已删除" value="DELETED" />
           </el-select>
         </el-col>
         <el-col :span="6">
-          <el-select v-model="searchForm.type" placeholder="权益包类型" clearable>
-            <el-option label="新手礼包" :value="1" />
-            <el-option label="会员礼包" :value="2" />
-            <el-option label="节日礼包" :value="3" />
-            <el-option label="活动礼包" :value="4" />
-          </el-select>
+          <el-input-number
+            v-model="searchForm.quantity"
+            placeholder="库存"
+            :min="0"
+            style="width: 100%"
+            clearable
+          />
         </el-col>
         <el-col :span="8">
           <el-button type="primary" @click="handleSearch">
@@ -44,6 +47,20 @@
           </el-button>
         </el-col>
       </el-row>
+      
+             <!-- 第二行搜索条件 -->
+       <el-row :gutter="20" style="margin-top: 15px;">
+         <el-col :span="6">
+           <el-input-number
+             v-model="searchForm.price"
+             placeholder="价格"
+             :precision="2"
+             :step="0.01"
+             style="width: 100%"
+             clearable
+           />
+         </el-col>
+       </el-row>
     </el-card>
 
     <!-- 权益包列表 -->
@@ -51,26 +68,41 @@
       <el-table :data="packageList" stripe v-loading="loading" border>
         <el-table-column prop="id" label="权益包ID" width="100" />
         <el-table-column prop="packageName" label="权益包名称" width="200" />
-        <el-table-column prop="type" label="权益包类型" width="120">
+                 <el-table-column prop="productNames" label="权益产品" width="280">
+           <template #default="scope">
+             <div v-if="scope.row.productNames && scope.row.productNames.length > 0" class="product-tags">
+               <el-tag 
+                 v-for="productName in scope.row.productNames" 
+                 :key="productName"
+                 size="small"
+                 type="info"
+                 class="product-tag"
+               >
+                 {{ productName }}
+               </el-tag>
+               <span class="product-count">({{ scope.row.productNames.length }}个产品)</span>
+             </div>
+             <span v-else class="text-muted">暂无权益产品</span>
+           </template>
+         </el-table-column>
+        <el-table-column prop="quantity" label="库存" width="100">
           <template #default="scope">
-            <el-tag :type="getTypeTag(scope.row.type)">
-              {{ getTypeLabel(scope.row.type) }}
-            </el-tag>
+            <span class="quantity-amount">{{ scope.row.quantity || 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="points" label="所需积分" width="120">
+        <el-table-column prop="price" label="价格" width="120">
           <template #default="scope">
-            <span class="points-amount">{{ scope.row.points || 0 }}</span>
+            <span class="price-amount">¥{{ scope.row.price?.toFixed(2) || '0.00' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="validDays" label="有效期(天)" width="120" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="scope.row.status === 1 ? 'success' : 'info'">
-              {{ scope.row.status === 1 ? '启用' : '禁用' }}
+            <el-tag :type="getStatusType(scope.row.status)">
+              {{ getStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="remark" label="备注" width="200" />
         <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="scope">
             {{ formatTime(scope.row.createTime) }}
@@ -81,10 +113,10 @@
             <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
             <el-button 
               size="small" 
-              :type="scope.row.status === 1 ? 'warning' : 'success'"
+              :type="scope.row.status === 'ACTIVE' ? 'warning' : 'success'"
               @click="handleToggleStatus(scope.row)"
             >
-              {{ scope.row.status === 1 ? '禁用' : '启用' }}
+              {{ scope.row.status === 'ACTIVE' ? '禁用' : '启用' }}
             </el-button>
             <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
@@ -94,7 +126,7 @@
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination
-          v-model:current-page="pagination.currentPage"
+          v-model:current-page="pagination.pageNum"
           v-model:page-size="pagination.pageSize"
           :page-sizes="[10, 20, 50, 100]"
           :total="pagination.total"
@@ -120,52 +152,76 @@
         <el-form-item label="权益包名称" prop="packageName">
           <el-input v-model="packageForm.packageName" placeholder="请输入权益包名称" />
         </el-form-item>
-        <el-form-item label="权益包类型" prop="type">
-          <el-select v-model="packageForm.type" placeholder="请选择权益包类型" style="width: 100%">
-            <el-option label="新手礼包" :value="1" />
-            <el-option label="会员礼包" :value="2" />
-            <el-option label="节日礼包" :value="3" />
-            <el-option label="活动礼包" :value="4" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="所需积分" prop="points">
+                 <el-form-item label="权益包图片" prop="file">
+           <el-upload
+             ref="uploadRef"
+             :auto-upload="false"
+             :show-file-list="true"
+             :limit="1"
+             accept="image/*"
+             @change="handleFileChange"
+             @remove="handleFileRemove"
+           >
+             <el-button type="primary">选择图片</el-button>
+             <template #tip>
+               <div class="el-upload__tip">
+                 只能上传jpg/png文件，且不超过2MB
+               </div>
+             </template>
+           </el-upload>
+         </el-form-item>
+         <el-form-item label="权益产品" prop="productNames">
+           <el-select
+             v-model="packageForm.productNames"
+             multiple
+             placeholder="请选择权益产品"
+             style="width: 100%"
+             filterable
+             remote
+             :remote-method="handleProductSearch"
+             :loading="productLoading"
+           >
+             <el-option
+               v-for="product in productOptions"
+               :key="product.id"
+               :label="product.productName"
+               :value="product.productName"
+             />
+           </el-select>
+         </el-form-item>
+        <el-form-item label="库存数量" prop="quantity">
           <el-input-number
-            v-model="packageForm.points"
+            v-model="packageForm.quantity"
             :min="0"
             :precision="0"
             style="width: 100%"
-            placeholder="请输入所需积分"
+            placeholder="请输入库存数量"
           />
         </el-form-item>
-        <el-form-item label="有效期(天)" prop="validDays">
+        <el-form-item label="价格" prop="price">
           <el-input-number
-            v-model="packageForm.validDays"
-            :min="1"
-            :precision="0"
+            v-model="packageForm.price"
+            :min="0"
+            :precision="2"
+            :step="0.01"
             style="width: 100%"
-            placeholder="请输入有效期天数"
+            placeholder="请输入价格"
           />
         </el-form-item>
-        <el-form-item label="权益包描述" prop="description">
+        <el-form-item label="备注" prop="remark">
           <el-input
-            v-model="packageForm.description"
+            v-model="packageForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入权益包描述"
+            placeholder="请输入备注"
           />
         </el-form-item>
-        <el-form-item label="包含权益" prop="benefits">
-          <el-input
-            v-model="packageForm.benefits"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入包含的权益内容"
-          />
-        </el-form-item>
-        <el-form-item label="权益包状态" prop="status">
+        <el-form-item label="状态" prop="status">
           <el-radio-group v-model="packageForm.status">
-            <el-radio :label="1">启用</el-radio>
-            <el-radio :label="0">禁用</el-radio>
+            <el-radio label="ACTIVE">启用</el-radio>
+            <el-radio label="INACTIVE">禁用</el-radio>
+            <el-radio label="EXPIRED">已过期</el-radio>
+            <el-radio label="DELETED">已删除</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -184,9 +240,12 @@ import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 
 // 搜索表单
 const searchForm = reactive({
-  packageName: '',  // 权益包名称
-  status: null,     // 权益包状态
-  type: null        // 权益包类型
+  id: null,           // 权益包ID
+  packageName: '',    // 权益包名称
+  productNames: [],   // 权益产品名称列表
+  status: null,       // 状态
+  quantity: null,     // 库存
+  price: null         // 价格
 })
 
 // 权益包列表数据
@@ -195,8 +254,8 @@ const loading = ref(false)
 
 // 分页信息
 const pagination = reactive({
-  currentPage: 1,
-  pageSize: 20,
+  pageNum: 1,
+  pageSize: 10,
   total: 0
 })
 
@@ -204,16 +263,22 @@ const pagination = reactive({
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const packageFormRef = ref(null)
+const uploadRef = ref(null)
 const packageForm = reactive({
   id: null,
   packageName: '',
-  type: null,
-  points: 0,
-  validDays: 30,
-  description: '',
-  benefits: '',
-  status: 1
+  productNames: [],
+  status: 'ACTIVE',
+  quantity: 0,
+  price: 0,
+  remark: '',
+  createTime: null,
+  file: null
 })
+
+// 权益产品选项
+const productOptions = ref([])
+const productLoading = ref(false)
 
 // 表单验证规则
 const packageFormRules = {
@@ -221,42 +286,138 @@ const packageFormRules = {
     { required: true, message: '请输入权益包名称', trigger: 'blur' },
     { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
   ],
-  type: [
-    { required: true, message: '请选择权益包类型', trigger: 'change' }
+  file: [
+    { required: true, message: '请选择权益包图片', trigger: 'change' }
   ],
-  points: [
-    { required: true, message: '请输入所需积分', trigger: 'blur' },
-    { type: 'number', min: 0, message: '积分不能小于0', trigger: 'blur' }
+  productNames: [
+    { required: true, message: '请选择权益产品', trigger: 'change' }
   ],
-  validDays: [
-    { required: true, message: '请输入有效期天数', trigger: 'blur' },
-    { type: 'number', min: 1, message: '有效期不能小于1天', trigger: 'blur' }
+  quantity: [
+    { required: true, message: '请输入库存数量', trigger: 'blur' },
+    { type: 'number', min: 0, message: '库存不能小于0', trigger: 'blur' }
+  ],
+  price: [
+    { required: true, message: '请输入价格', trigger: 'blur' },
+    { type: 'number', min: 0, message: '价格不能小于0', trigger: 'blur' }
   ],
   status: [
     { required: true, message: '请选择权益包状态', trigger: 'change' }
   ]
 }
 
-// 获取类型标签类型
-const getTypeTag = (type) => {
-  const tagMap = {
-    1: 'primary',   // 新手礼包
-    2: 'success',   // 会员礼包
-    3: 'warning',   // 节日礼包
-    4: 'info'       // 活动礼包
+// 获取状态标签类型
+const getStatusType = (status) => {
+  const statusMap = {
+    'ACTIVE': 'success',    // 启用 - 绿色
+    'INACTIVE': 'info',     // 禁用 - 灰色
+    'EXPIRED': 'warning',   // 已过期 - 橙色
+    'DELETED': 'danger'     // 已删除 - 红色
   }
-  return tagMap[type] || ''
+  return statusMap[status] || 'warning'
 }
 
-// 获取类型标签文本
-const getTypeLabel = (type) => {
-  const labelMap = {
-    1: '新手礼包',
-    2: '会员礼包',
-    3: '节日礼包',
-    4: '活动礼包'
+// 获取状态标签文本
+const getStatusLabel = (status) => {
+  const statusMap = {
+    'ACTIVE': '启用',
+    'INACTIVE': '禁用',
+    'EXPIRED': '已过期',
+    'DELETED': '已删除'
   }
-  return labelMap[type] || '未知'
+  return statusMap[status] || '未知'
+}
+
+// 对权益包数据进行分组处理
+const groupPackageData = (data) => {
+  if (!Array.isArray(data) || data.length === 0) {
+    return []
+  }
+  
+  console.log('开始处理权益包数据分组，原始数据:', data)
+  
+  // 按权益包ID分组
+  const packageMap = new Map()
+  
+  data.forEach((item, index) => {
+    const packageId = item.id || item.packageId
+    
+    if (!packageMap.has(packageId)) {
+      // 创建新的权益包记录
+      packageMap.set(packageId, {
+        id: packageId,
+        packageName: item.packageName || '',
+        status: item.status || 'ACTIVE',
+        quantity: item.quantity || 0,
+        price: item.price || 0,
+        remark: item.remark || '',
+        createTime: item.createTime || null,
+        productNames: [], // 存储权益产品名称列表
+        products: []      // 存储完整的权益产品信息
+      })
+    }
+    
+    // 添加权益产品信息
+    const existingPackage = packageMap.get(packageId)
+    
+    // 处理不同的产品数据结构
+    if (item.productName) {
+      // 单个产品名称
+      if (!existingPackage.productNames.includes(item.productName)) {
+        existingPackage.productNames.push(item.productName)
+        existingPackage.products.push({
+          productName: item.productName,
+          // 可以添加其他产品相关字段
+        })
+      }
+    } else if (item.productNames && Array.isArray(item.productNames)) {
+      // 产品名称数组
+      item.productNames.forEach(productName => {
+        if (productName && !existingPackage.productNames.includes(productName)) {
+          existingPackage.productNames.push(productName)
+          existingPackage.products.push({
+            productName: productName,
+          })
+        }
+      })
+    } else if (item.products && Array.isArray(item.products)) {
+      // 产品对象数组
+      item.products.forEach(product => {
+        const productName = product.productName || product.name
+        if (productName && !existingPackage.productNames.includes(productName)) {
+          existingPackage.productNames.push(productName)
+          existingPackage.products.push({
+            productName: productName,
+            ...product
+          })
+        }
+      })
+    }
+    
+    // 调试信息
+    if (index < 3) { // 只显示前3条数据的详细信息
+      console.log(`处理第${index + 1}条数据:`, {
+        packageId,
+        packageName: item.packageName,
+        productName: item.productName,
+        productNames: item.productNames,
+        products: item.products
+      })
+    }
+  })
+  
+  // 转换为数组并排序
+  const result = Array.from(packageMap.values())
+  result.sort((a, b) => {
+    // 按创建时间倒序排列
+    if (a.createTime && b.createTime) {
+      return new Date(b.createTime) - new Date(a.createTime)
+    }
+    // 如果没有创建时间，按ID排序
+    return (b.id || 0) - (a.id || 0)
+  })
+  
+  console.log('分组处理完成，结果:', result)
+  return result
 }
 
 // 格式化时间
@@ -283,16 +444,19 @@ const formatTime = (time) => {
 
 // 搜索
 const handleSearch = () => {
-  pagination.currentPage = 1
+  pagination.pageNum = 1
   loadPackageList()
 }
 
 // 重置搜索
 const handleReset = () => {
   Object.assign(searchForm, {
+    id: null,
     packageName: '',
+    productNames: [],
     status: null,
-    type: null
+    quantity: null,
+    price: null
   })
   handleSearch()
 }
@@ -303,13 +467,22 @@ const handleAdd = () => {
   Object.assign(packageForm, {
     id: null,
     packageName: '',
-    type: null,
-    points: 0,
-    validDays: 30,
-    description: '',
-    benefits: '',
-    status: 1
+    productNames: [],
+    status: 'ACTIVE',
+    quantity: 0,
+    price: 0,
+    remark: '',
+    createTime: null,
+    file: null
   })
+  // 重置文件上传组件
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
+  // 重置产品选项
+  productOptions.value = []
+  // 加载权益产品选项
+  loadProductOptions()
   dialogVisible.value = true
 }
 
@@ -323,8 +496,8 @@ const handleEdit = (row) => {
 // 切换状态
 const handleToggleStatus = async (row) => {
   try {
-    const newStatus = row.status === 1 ? 0 : 1
-    const action = newStatus === 1 ? '启用' : '禁用'
+    const newStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    const action = newStatus === 'ACTIVE' ? '启用' : '禁用'
     
     await ElMessageBox.confirm(
       `确定要${action}权益包"${row.packageName}"吗？`,
@@ -365,17 +538,166 @@ const handleDelete = async (row) => {
   }
 }
 
+// 文件选择处理
+const handleFileChange = (file) => {
+  packageForm.file = file.raw
+}
+
+// 文件移除处理
+const handleFileRemove = () => {
+  packageForm.file = null
+}
+
+// 加载权益产品选项
+const loadProductOptions = async () => {
+  try {
+    console.log('开始加载权益产品选项...')
+    const { queryAllProduct } = await import('@/api/user')
+    
+    // 尝试不同的分页参数组合
+    const requestParams = {
+      pageNum: 1,
+      pageSize: 100, // 获取所有产品
+      status: 'ACTIVE' // 只获取启用的产品
+    }
+    
+    console.log('请求参数:', requestParams)
+    const response = await queryAllProduct(requestParams)
+    console.log('API响应:', response)
+    
+    if (response.code === 200 && response.data) {
+      const products = response.data.data || response.data.records || []
+      productOptions.value = products
+      console.log('加载权益产品选项成功，数量:', products.length)
+    } else {
+      console.warn('获取权益产品列表响应异常:', response)
+      // 尝试不带分页参数的请求
+      await tryLoadProductsWithoutPagination()
+    }
+  } catch (error) {
+    console.error('获取权益产品列表失败:', error)
+    // 尝试不带分页参数的请求
+    await tryLoadProductsWithoutPagination()
+  }
+}
+
+// 尝试不带分页参数加载产品
+const tryLoadProductsWithoutPagination = async () => {
+  try {
+    console.log('尝试不带分页参数加载产品...')
+    const { queryAllProduct } = await import('@/api/user')
+    const response = await queryAllProduct({
+      status: 'ACTIVE'
+    })
+    
+    if (response.code === 200 && response.data) {
+      const products = response.data.data || response.data.records || []
+      productOptions.value = products
+      console.log('不带分页参数加载成功，数量:', products.length)
+    } else {
+      console.warn('不带分页参数加载也失败:', response)
+      productOptions.value = []
+      ElMessage.error('获取权益产品列表失败')
+    }
+  } catch (error) {
+    console.error('不带分页参数加载失败:', error)
+    productOptions.value = []
+    ElMessage.error('获取权益产品列表失败')
+  }
+}
+
+// 产品搜索处理
+const handleProductSearch = async (query) => {
+  if (query !== '') {
+    productLoading.value = true
+    try {
+      const { queryAllProduct } = await import('@/api/user')
+      const response = await queryAllProduct({
+        productName: query,
+        status: 'ACTIVE',
+        pageNum: 1,
+        pageSize: 100 // 搜索时限制数量
+      })
+      
+      if (response.code === 200 && response.data) {
+        const products = response.data.data || response.data.records || []
+        productOptions.value = products
+        console.log('搜索权益产品成功，数量:', products.length)
+      } else {
+        console.warn('搜索权益产品响应异常:', response)
+        productOptions.value = []
+      }
+    } catch (error) {
+      console.error('搜索权益产品失败:', error)
+      productOptions.value = []
+    } finally {
+      productLoading.value = false
+    }
+  } else {
+    // 如果搜索词为空，加载所有产品
+    loadProductOptions()
+  }
+}
+
 // 提交表单
 const handleSubmit = async () => {
   try {
     await packageFormRef.value.validate()
     
-    // TODO: 调用后端API保存权益包
-    ElMessage.success(packageForm.id ? '更新成功' : '新增成功')
+    if (packageForm.id) {
+      // 编辑模式
+      // TODO: 调用后端API更新权益包
+      ElMessage.success('更新成功')
+    } else {
+      // 新增模式
+      await handleSavePackage()
+    }
+    
     dialogVisible.value = false
     loadPackageList()
   } catch (error) {
     console.error('表单验证失败:', error)
+  }
+}
+
+// 保存权益包
+const handleSavePackage = async () => {
+  try {
+    if (!packageForm.file) {
+      ElMessage.error('请选择权益包图片')
+      return
+    }
+    
+    // 构建FormData
+    const formData = new FormData()
+    formData.append('file', packageForm.file)
+    
+    // 构建请求参数
+    const request = {
+      packageName: packageForm.packageName,
+      price: packageForm.price,
+      productNames: packageForm.productNames,
+      remark: packageForm.remark,
+      quantity: packageForm.quantity,
+      status: packageForm.status
+    }
+    
+    // 将请求参数转换为Blob并添加到FormData
+    const requestBlob = new Blob([JSON.stringify(request)], { type: 'application/json' })
+    formData.append('request', requestBlob, 'request.json')
+    
+    // 调用后端接口
+    const { savePackage } = await import('@/api/user')
+    const response = await savePackage(formData)
+    
+    if (response.code === 200) {
+      ElMessage.success('新增权益包成功')
+    } else {
+      ElMessage.error(response.message || '新增权益包失败')
+    }
+  } catch (error) {
+    console.error('新增权益包失败:', error)
+    ElMessage.error('新增权益包失败，请稍后重试')
   }
 }
 
@@ -387,7 +709,7 @@ const handleSizeChange = (size) => {
 
 // 当前页改变
 const handleCurrentChange = (page) => {
-  pagination.currentPage = page
+  pagination.pageNum = page
   loadPackageList()
 }
 
@@ -395,39 +717,54 @@ const handleCurrentChange = (page) => {
 const loadPackageList = async () => {
   loading.value = true
   try {
-    // TODO: 调用后端API获取权益包列表
-    // 模拟数据
-    setTimeout(() => {
-      packageList.value = [
-        {
-          id: 1,
-          packageName: '新手大礼包',
-          type: 1,
-          points: 1000,
-          validDays: 30,
-          status: 1,
-          description: '新用户专享权益包',
-          benefits: '包含积分、优惠券、会员体验等',
-          createTime: new Date()
-        },
-        {
-          id: 2,
-          packageName: 'VIP会员礼包',
-          type: 2,
-          points: 5000,
-          validDays: 90,
-          status: 1,
-          description: 'VIP会员专享权益包',
-          benefits: '包含高级服务、专属优惠、优先体验等',
-          createTime: new Date()
-        }
-      ]
-      pagination.total = 2
-      loading.value = false
-    }, 500)
+         // 构建请求参数
+     const request = {
+       id: searchForm.id || undefined,
+       packageName: searchForm.packageName || undefined,
+       productNames: searchForm.productNames.length > 0 ? searchForm.productNames : undefined,
+       status: searchForm.status,
+       quantity: searchForm.quantity,
+       price: searchForm.price,
+       pageNum: pagination.pageNum,
+       pageSize: pagination.pageSize
+     }
+    
+    // 移除undefined的字段
+    Object.keys(request).forEach(key => {
+      if (request[key] === undefined || request[key] === null || request[key] === '') {
+        delete request[key]
+      }
+    })
+    
+    // 调用后端接口
+    const { queryPackage } = await import('@/api/user')
+    const response = await queryPackage(request)
+    
+    if (response.code === 200 && response.data) {
+      // 后端返回的数据结构是 data.data，需要适配
+      const resultData = response.data.data || response.data.records || []
+      const total = response.data.total || 0
+      
+      // 对数据进行分组处理，相同权益包ID的数据合并到同一行
+      const groupedData = groupPackageData(resultData)
+      
+      packageList.value = groupedData
+      pagination.total = total
+      
+      console.log('原始权益包数据:', resultData)
+      console.log('分组后的权益包数据:', groupedData)
+      console.log('总数:', total)
+    } else {
+      ElMessage.error(response.message || '获取权益包列表失败')
+      packageList.value = []
+      pagination.total = 0
+    }
   } catch (error) {
     console.error('获取权益包列表失败:', error)
     ElMessage.error('获取权益包列表失败，请稍后重试')
+    packageList.value = []
+    pagination.total = 0
+  } finally {
     loading.value = false
   }
 }
@@ -461,5 +798,44 @@ onMounted(() => {
 .points-amount {
   font-weight: bold;
   color: #67C23A;
+}
+
+.quantity-amount {
+  font-weight: bold;
+  color: #409EFF;
+}
+
+.price-amount {
+  font-weight: bold;
+  color: #E6A23C;
+}
+
+.text-muted {
+  color: #909399;
+  font-style: italic;
+}
+
+.product-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.product-tag {
+  margin: 0;
+}
+
+.product-count {
+  color: #909399;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.el-upload__tip {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.2;
+  margin-top: 5px;
 }
 </style>

@@ -170,4 +170,20 @@ export const queryAllPointTransaction = (request) => {
   return api.post('/pointTransaction/queryAllPointTransaction', request)
 }
 
+// 查询权益包
+// BenefitPackageRequest: 权益包查询参数
+// PageResult<BenefitPackageVo>: 分页结果
+export const queryPackage = (request) => {
+  return api.post('/package/queryPackage', request)
+}
+
+// 保存权益包
+// FormData: 包含文件和权益包信息的表单数据
+// BaseResponse<Integer>: 保存结果
+export const savePackage = (formData) => {
+  return api.post('/package/savePackage', formData, {
+    // 让浏览器自动设置multipart/form-data及boundary
+  })
+}
+
 export default api
