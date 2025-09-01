@@ -106,35 +106,27 @@
              </el-tag>
            </template>
          </el-table-column>
-        <el-table-column prop="remark" label="备注" width="200" />
+        <el-table-column prop="remark" label="备注" width="300" />
         <el-table-column prop="createTime" label="创建时间" width="160">
           <template #default="scope">
             {{ formatTime(scope.row.createTime) }}
           </template>
         </el-table-column>
-                 <el-table-column label="操作" width="200" fixed="right">
-           <template #default="scope">
-             <el-button 
-               v-if="scope.row.status !== 'DELETED'"
-               size="small" 
-               @click="handleEdit(scope.row)"
-             >
-               编辑
-             </el-button>
-             
-             <el-button 
-               v-if="scope.row.status !== 'DELETED'"
-               size="small" 
-               type="danger" 
-               @click="handleDelete(scope.row)"
-             >
-               删除
-             </el-button>
-             <span v-if="scope.row.status === 'DELETED'" class="text-muted">
-               已删除
-             </span>
-           </template>
-         </el-table-column>
+                                   <el-table-column label="操作" width="120" fixed="right">
+            <template #default="scope">
+              <el-button 
+                v-if="scope.row.status !== 'DELETED'"
+                size="small" 
+                @click="handleEdit(scope.row)"
+              >
+                编辑
+              </el-button>
+              
+              <span v-if="scope.row.status === 'DELETED'" class="text-muted">
+                已删除
+              </span>
+            </template>
+          </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -582,26 +574,7 @@ const isValidImageFile = (file) => {
 
 
 
-// 删除产品
-const handleDelete = async (row) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除产品"${row.productName}"吗？此操作不可恢复！`,
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    // TODO: 调用后端API删除产品
-    ElMessage.success('删除成功')
-    loadProductList()
-  } catch (error) {
-    // 用户取消操作
-  }
-}
+
 
 // 提交表单
 const handleSubmit = async () => {
