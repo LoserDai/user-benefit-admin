@@ -211,4 +211,9 @@ export const saveActivity = (formData) => {
   })
 }
 
+// 更新权益活动
+export const updateActivity = (request) => {
+  return api.post('/activity/updateActivity', request)
+}
+
 export default api

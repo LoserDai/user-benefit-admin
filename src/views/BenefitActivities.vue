@@ -103,9 +103,29 @@
             {{ formatTime(scope.row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+            <el-button size="small" @click="handleDetail(scope.row)">详情</el-button>
+            <el-button 
+              v-if="canOperateActivity(scope.row.status)"
+              size="small" 
+              type="warning" 
+              @click="handleCancelActivity(scope.row)"
+              :loading="actionLoading"
+              style="margin-left: 5px;"
+            >
+              取消
+            </el-button>
+            <el-button 
+              v-if="canOperateActivity(scope.row.status)"
+              size="small" 
+              type="danger" 
+              @click="handleEndActivity(scope.row)"
+              :loading="actionLoading"
+              style="margin-left: 5px;"
+            >
+              结束
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -124,10 +144,10 @@
       </div>
     </el-card>
 
-    <!-- 新增/编辑活动对话框 -->
+    <!-- 新增活动对话框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="dialogTitle"
+      title="新增活动"
       width="800px"
     >
       <el-form
@@ -343,6 +363,82 @@
         <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 活动详情对话框 -->
+    <el-dialog
+      v-model="detailDialogVisible"
+      title="活动详情"
+      width="800px"
+    >
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="活动名称">
+          {{ activityDetail.activityName || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="活动类型">
+          <el-tag :type="getActivityTypeTag(activityDetail.activityType)">
+            {{ getActivityTypeLabel(activityDetail.activityType) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="活动状态">
+          <el-tag :type="getActivityStatusTag(activityDetail.status)">
+            {{ getActivityStatusLabel(activityDetail.status) }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="活动图片">
+          <el-image
+            v-if="activityDetail.imageUrl || activityDetail.activityImagePath"
+            :src="getImageUrl(activityDetail.imageUrl || activityDetail.activityImagePath)"
+            style="width: 100px; height: 100px"
+            fit="cover"
+            :preview-src-list="[getImageUrl(activityDetail.imageUrl || activityDetail.activityImagePath)]"
+          />
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="活动描述" :span="2">
+          {{ activityDetail.description || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="开始时间">
+          {{ formatTime(activityDetail.startTime) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="结束时间">
+          {{ formatTime(activityDetail.endTime) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="折扣值">
+          {{ activityDetail.discountValue || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="价格">
+          {{ activityDetail.price ? `¥${activityDetail.price}` : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="最低购买限制">
+          {{ activityDetail.minPurchase || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="限购数量">
+          {{ activityDetail.purchaseLimit || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="关联权益包" :span="2">
+          <div v-if="activityDetail.packageNames && activityDetail.packageNames.length > 0" class="package-tags">
+            <el-tag
+              v-for="(pkgName, index) in activityDetail.packageNames"
+              :key="index"
+              class="package-tag"
+              type="info"
+            >
+              {{ pkgName }}
+            </el-tag>
+          </div>
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">
+          {{ activityDetail.remark || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="创建时间">
+          {{ formatTime(activityDetail.createTime) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="更新时间">
+          {{ formatTime(activityDetail.updateTime) }}
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
   </div>
 </template>
 
@@ -387,8 +483,12 @@ const pagination = reactive({
 
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = ref('')
 const activityFormRef = ref(null)
+
+// 详情对话框
+const detailDialogVisible = ref(false)
+const activityDetail = ref({})
+const actionLoading = ref(false)
 const activityForm = reactive({
   id: null,
   activityName: '',
@@ -490,9 +590,21 @@ const getActivityStatusLabel = (status) => {
     'NOT_STARTED': '未开始',
     'ONGOING': '进行中',
     'ENDED': '已结束',
-    'CANCELED': '已取消'
+    'CANCELED': '已取消',
+    0: '未开始',
+    1: '进行中',
+    2: '已结束',
+    3: '已取消'
   }
   return statusMap[status] || '未知状态'
+}
+
+// 检查活动是否可以操作（取消或结束）
+const canOperateActivity = (status) => {
+  return status === 'NOT_STARTED' || 
+         status === 'ONGOING' || 
+         status === 0 || 
+         status === 1
 }
 
 // 获取图片URL
@@ -925,7 +1037,6 @@ const handleReset = () => {
 
 // 新增活动
 const handleAdd = async () => {
-  dialogTitle.value = '新增活动'
   Object.assign(activityForm, {
     id: null,
     activityName: '',
@@ -953,45 +1064,122 @@ const handleAdd = async () => {
   dialogVisible.value = true
 }
 
-// 编辑活动
-const handleEdit = async (row) => {
-  dialogTitle.value = '编辑活动'
+// 查看活动详情
+const handleDetail = (row) => {
+  activityDetail.value = { ...row }
+  console.log('活动详情数据:', activityDetail.value)
+  console.log('活动状态:', activityDetail.value.status)
+  console.log('状态类型:', typeof activityDetail.value.status)
   
-  // 先显示对话框，避免抖动
-  dialogVisible.value = true
+  // 检查状态判断逻辑
+  const canOperate = canOperateActivity(activityDetail.value.status)
+  console.log('是否可以操作:', canOperate)
   
+  detailDialogVisible.value = true
+}
+
+// 取消活动
+const handleCancelActivity = async (row) => {
   try {
-    // 重置权益包选项
-    packageOptions.value = []
+    await ElMessageBox.confirm(
+      `确定要取消活动"${row.activityName}"吗？取消后活动将无法恢复。`,
+      '确认取消',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
     
-    // 设置表单数据
-  Object.assign(activityForm, {
-    ...row,
-      packageIds: row.packageIds || [],
-      packageNames: row.packageNames || [],
-      file: null,
-      imagePath: row.activityImagePath || ''
-    })
+    actionLoading.value = true
     
-    // 加载所有权益包数据
-    await loadAllPackages()
-    
-    // 如果有权益包ID但没有名称，需要根据ID获取名称
-    if (row.packageIds && row.packageIds.length > 0 && (!row.packageNames || row.packageNames.length === 0)) {
-      await loadPackageNamesByIds(row.packageIds)
+    const requestData = {
+      id: row.id,
+      activityName: row.activityName,
+      description: row.description,
+      activityType: row.activityType,
+      status: 'CANCELED',
+      startTime: row.startTime,
+      endTime: row.endTime,
+      discountValue: row.discountValue,
+      price: row.price,
+      remark: row.remark,
+      minPurchase: row.minPurchase,
+      purchaseLimit: row.purchaseLimit,
+      packageIds: row.packageIds || []
     }
     
-    // 确保权益包名称正确回显
-    if (row.packageNames && row.packageNames.length > 0) {
-      // 使用 nextTick 确保在下一个 tick 更新，避免抖动
-      await nextTick()
-      activityForm.packageNames = [...row.packageNames]
+    const { updateActivity } = await import('@/api/user')
+    const response = await updateActivity(requestData)
+    
+    if (response.code === 200) {
+      ElMessage.success('活动已取消')
+      // 刷新列表
+      loadActivityList()
+    } else {
+      ElMessage.error(response.message || '取消失败')
     }
   } catch (error) {
-    console.error('编辑活动时加载数据失败:', error)
-    ElMessage.error('加载活动数据失败')
+    if (error !== 'cancel') {
+      console.error('取消活动失败:', error)
+      ElMessage.error('取消失败，请稍后重试')
+    }
+  } finally {
+    actionLoading.value = false
   }
 }
+
+// 结束活动
+const handleEndActivity = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要结束活动"${row.activityName}"吗？结束后活动将无法恢复。`,
+      '确认结束',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    actionLoading.value = true
+    
+    const requestData = {
+      id: row.id,
+      activityName: row.activityName,
+      description: row.description,
+      activityType: row.activityType,
+      status: 'ENDED',
+      startTime: row.startTime,
+      endTime: row.endTime,
+      discountValue: row.discountValue,
+      price: row.price,
+      remark: row.remark,
+      minPurchase: row.minPurchase,
+      purchaseLimit: row.purchaseLimit,
+      packageIds: row.packageIds || []
+    }
+    
+    const { updateActivity } = await import('@/api/user')
+    const response = await updateActivity(requestData)
+    
+    if (response.code === 200) {
+      ElMessage.success('活动已结束')
+      // 刷新列表
+    loadActivityList()
+    } else {
+      ElMessage.error(response.message || '结束失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('结束活动失败:', error)
+      ElMessage.error('结束失败，请稍后重试')
+    }
+  } finally {
+    actionLoading.value = false
+  }
+}
+
 
 
 
@@ -1034,12 +1222,7 @@ const handleSubmit = async () => {
     console.log('提交的权益包ID:', activityForm.packageIds)
     console.log('请求参数:', requestData)
     
-    // 如果有ID，说明是编辑，否则是新增
-    if (activityForm.id) {
-      requestData.id = activityForm.id
-    }
-    
-    // 构建FormData
+    // 新增时使用FormData（支持文件上传）
     const formData = new FormData()
     if (activityForm.file) {
       formData.append('file', activityForm.file)
@@ -1054,11 +1237,11 @@ const handleSubmit = async () => {
     const response = await saveActivity(formData)
     
     if (response.code === 200) {
-    ElMessage.success(activityForm.id ? '更新成功' : '新增成功')
+      ElMessage.success('新增成功')
     dialogVisible.value = false
     loadActivityList()
     } else {
-      ElMessage.error(response.message || '保存失败')
+      ElMessage.error(response.message || '新增失败')
     }
   } catch (error) {
     console.error('保存活动失败:', error)
@@ -1217,6 +1400,17 @@ onUnmounted(() => {
   font-size: 12px;
   margin-left: 8px;
 }
+
+/* 详情对话框样式 */
+.el-descriptions {
+  margin-top: 20px;
+}
+
+.el-descriptions-item__label {
+  font-weight: 600;
+  color: #606266;
+}
+
 
 .text-muted {
   color: #909399;
