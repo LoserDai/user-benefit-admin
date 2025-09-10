@@ -64,6 +64,23 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="packageNames" label="关联权益包" width="280">
+          <template #default="scope">
+            <div v-if="scope.row.packageNames && scope.row.packageNames.length > 0" class="package-tags">
+              <el-tag 
+                v-for="packageName in scope.row.packageNames" 
+                :key="packageName"
+                size="small"
+                type="info"
+                class="package-tag"
+              >
+                {{ packageName }}
+              </el-tag>
+              <span class="package-count">({{ scope.row.packageNames.length }}个权益包)</span>
+            </div>
+            <span v-else class="text-muted">暂无关联权益包</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="startTime" label="开始时间" width="160">
           <template #default="scope">
             {{ formatTime(scope.row.startTime) }}
@@ -111,45 +128,34 @@
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="700px"
+      width="800px"
     >
       <el-form
         ref="activityFormRef"
         :model="activityForm"
         :rules="activityFormRules"
-        label-width="100px"
+        label-width="120px"
       >
+        <el-row :gutter="20">
+          <el-col :span="12">
         <el-form-item label="活动名称" prop="activityName">
           <el-input v-model="activityForm.activityName" placeholder="请输入活动名称" />
         </el-form-item>
-        <el-form-item label="活动类型" prop="type">
-          <el-select v-model="activityForm.type" placeholder="请选择活动类型" style="width: 100%">
-            <el-option label="积分翻倍" :value="1" />
-            <el-option label="限时折扣" :value="2" />
-            <el-option label="新用户专享" :value="3" />
-            <el-option label="节日特惠" :value="4" />
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="活动类型" prop="activityType">
+              <el-select v-model="activityForm.activityType" placeholder="请选择活动类型" style="width: 100%">
+                <el-option 
+                  v-for="(type, key) in ActivityType" 
+                  :key="key"
+                  :label="type.label" 
+                  :value="type.value" 
+                />
           </el-select>
         </el-form-item>
-        <el-form-item label="活动时间" prop="timeRange">
-          <el-date-picker
-            v-model="activityForm.timeRange"
-            type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item label="活动规则" prop="rules">
-          <el-input
-            v-model="activityForm.rules"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入活动规则"
-          />
-        </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item label="活动描述" prop="description">
           <el-input
             v-model="activityForm.description"
@@ -158,19 +164,177 @@
             placeholder="请输入活动描述"
           />
         </el-form-item>
-        <el-form-item label="活动状态" prop="status">
-          <el-radio-group v-model="activityForm.status">
-            <el-radio :label="0">未开始</el-radio>
-            <el-radio :label="1">进行中</el-radio>
-            <el-radio :label="3">已暂停</el-radio>
-          </el-radio-group>
+
+        <el-form-item label="活动图片" prop="file">
+          <!-- 显示现有图片 -->
+          <div v-if="activityForm.imagePath && !activityForm.file" class="existing-image">
+            <el-image
+              :src="getImageUrl(activityForm.imagePath)"
+              style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px;"
+              fit="cover"
+              :preview-src-list="[getImageUrl(activityForm.imagePath)]"
+            />
+            <div class="image-info">
+              <span class="image-name">{{ activityForm.imagePath.split('/').pop() }}</span>
+              <el-button type="text" size="small" @click="removeExistingImage">移除现有图片</el-button>
+            </div>
+          </div>
+          
+          <!-- 文件上传组件 -->
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :show-file-list="true"
+            :limit="1"
+            accept="image/*"
+            @change="handleFileChange"
+            @remove="handleFileRemove"
+          >
+            <el-button type="primary">{{ activityForm.imagePath ? '更换图片' : '选择图片' }}</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                只能上传jpg/png文件，且不超过2MB
+              </div>
+            </template>
+          </el-upload>
         </el-form-item>
-        <el-form-item label="活动配置" prop="config">
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+        <el-form-item label="活动状态" prop="status">
+              <el-select v-model="activityForm.status" placeholder="请选择活动状态" style="width: 100%">
+                <el-option 
+                  v-for="(status, key) in ActivityStatus" 
+                  :key="key"
+                  :label="status.label" 
+                  :value="status.value" 
+                />
+              </el-select>
+        </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="关联权益包" prop="packageNames">
+              <el-select
+                v-model="activityForm.packageNames"
+                multiple
+                placeholder="请选择权益包（可搜索）"
+                style="width: 100%"
+                filterable
+                remote
+                :remote-method="handlePackageSearch"
+                :loading="packageLoading"
+                clearable
+                collapse-tags
+                collapse-tags-tooltip
+                :max-collapse-tags="3"
+                @focus="handlePackageFocus"
+                @blur="handlePackageBlur"
+                @visible-change="handlePackageVisibleChange"
+              >
+                <el-option
+                  v-for="pkg in packageOptions"
+                  :key="pkg.id"
+                  :label="pkg.packageName || pkg.package_name || pkg.name || `权益包-${pkg.id}`"
+                  :value="pkg.packageName || pkg.package_name || pkg.name || `权益包-${pkg.id}`"
+                >
+                  <span style="float: left">{{ pkg.packageName || pkg.package_name || pkg.name || `权益包-${pkg.id}` }}</span>
+                  <span style="float: right; color: #8492a6; font-size: 13px">
+                    ¥{{ pkg.price?.toFixed(2) || '0.00' }}
+                  </span>
+                </el-option>
+              </el-select>
+              <div class="el-form-item__help">
+                支持搜索权益包名称，已选择 {{ activityForm.packageNames?.length || 0 }} 个权益包
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="开始时间" prop="startTime">
+              <el-date-picker
+                v-model="activityForm.startTime"
+                type="datetime"
+                placeholder="请选择开始时间"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="结束时间" prop="endTime">
+              <el-date-picker
+                v-model="activityForm.endTime"
+                type="datetime"
+                placeholder="请选择结束时间"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="折扣值" prop="discountValue">
+              <el-input-number
+                v-model="activityForm.discountValue"
+                :min="0"
+                :precision="2"
+                :step="0.01"
+                style="width: 100%"
+                placeholder="请输入折扣值"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="价格" prop="price">
+              <el-input-number
+                v-model="activityForm.price"
+                :min="0"
+                :precision="2"
+                :step="0.01"
+                style="width: 100%"
+                placeholder="请输入价格"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="最低购买限制" prop="minPurchase">
+              <el-input-number
+                v-model="activityForm.minPurchase"
+                :min="1"
+                :precision="0"
+                style="width: 100%"
+                placeholder="请输入最低购买限制"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="限购数量" prop="purchaseLimit">
+              <el-input-number
+                v-model="activityForm.purchaseLimit"
+                :min="1"
+                :precision="0"
+                style="width: 100%"
+                placeholder="请输入限购数量"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="备注" prop="remark">
           <el-input
-            v-model="activityForm.config"
+            v-model="activityForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="请输入活动配置(JSON格式)"
+            placeholder="请输入备注"
           />
         </el-form-item>
       </el-form>
@@ -183,7 +347,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { queryActivityList } from '@/api/user'
@@ -228,13 +392,31 @@ const activityFormRef = ref(null)
 const activityForm = reactive({
   id: null,
   activityName: '',
-  type: null,
-  timeRange: [],
-  rules: '',
   description: '',
-  status: 0,
-  config: ''
+  activityType: null,
+  status: 'NOT_STARTED',
+  startTime: null,
+  endTime: null,
+  discountValue: 0,
+  price: 0,
+  remark: '',
+  minPurchase: 1,
+  purchaseLimit: 1,
+  packageIds: [],      // 存储权益包ID数组（用于提交）
+  packageNames: [],    // 存储权益包名称数组（用于显示和选择）
+  file: null,
+  imagePath: '' // 存储现有图片路径
 })
+
+// 权益包选项
+const packageOptions = ref([])
+const packageLoading = ref(false)
+
+// 权益包搜索防抖定时器
+let packageSearchTimeout = null
+
+// 防止选择变化时触发搜索的标志
+let isSelecting = false
 
 // 表单验证规则
 const activityFormRules = {
@@ -242,17 +424,36 @@ const activityFormRules = {
     { required: true, message: '请输入活动名称', trigger: 'blur' },
     { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
   ],
-  type: [
+  description: [
+    { required: true, message: '请输入活动描述', trigger: 'blur' }
+  ],
+  activityType: [
     { required: true, message: '请选择活动类型', trigger: 'change' }
-  ],
-  timeRange: [
-    { required: true, message: '请选择活动时间', trigger: 'change' }
-  ],
-  rules: [
-    { required: true, message: '请输入活动规则', trigger: 'blur' }
   ],
   status: [
     { required: true, message: '请选择活动状态', trigger: 'change' }
+  ],
+  startTime: [
+    { required: true, message: '请选择开始时间', trigger: 'change' }
+  ],
+  endTime: [
+    { required: true, message: '请选择结束时间', trigger: 'change' }
+  ],
+  discountValue: [
+    { required: true, message: '请输入折扣值', trigger: 'blur' },
+    { type: 'number', min: 0, message: '折扣值必须大于等于0', trigger: 'blur' }
+  ],
+  price: [
+    { required: true, message: '请输入价格', trigger: 'blur' },
+    { type: 'number', min: 0, message: '价格必须大于等于0', trigger: 'blur' }
+  ],
+  minPurchase: [
+    { required: true, message: '请输入最低购买限制', trigger: 'blur' },
+    { type: 'number', min: 1, message: '最低购买限制必须大于0', trigger: 'blur' }
+  ],
+  purchaseLimit: [
+    { required: true, message: '请输入限购数量', trigger: 'blur' },
+    { type: 'number', min: 1, message: '限购数量必须大于0', trigger: 'blur' }
   ]
 }
 
@@ -294,6 +495,387 @@ const getActivityStatusLabel = (status) => {
   return statusMap[status] || '未知状态'
 }
 
+// 获取图片URL
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return ''
+  if (imagePath.startsWith('http')) return imagePath
+  return `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}${imagePath}`
+}
+
+// 权益包去重函数
+const deduplicatePackages = (packages) => {
+  return packages.reduce((acc, current) => {
+    const currentName = current.packageName || current.package_name || current.name
+    const existingPackage = acc.find(pkg => {
+      const pkgName = pkg.packageName || pkg.package_name || pkg.name
+      return pkgName === currentName
+    })
+    if (!existingPackage && currentName) {
+      acc.push(current)
+    }
+    return acc
+  }, [])
+}
+
+// 对权益活动数据进行分组处理
+const groupActivityData = (data) => {
+  if (!Array.isArray(data) || data.length === 0) {
+    return []
+  }
+  
+  console.log('原始数据:', data) // 添加调试日志
+  console.log('第一个数据项的字段:', data.length > 0 ? Object.keys(data[0]) : []) // 查看字段名
+  
+  // 按活动ID分组
+  const activityMap = new Map()
+  
+  data.forEach((item) => {
+    const activityId = item.id || item.activityId
+    
+    if (!activityMap.has(activityId)) {
+      // 创建新的活动记录
+      activityMap.set(activityId, {
+        id: activityId,
+        activityName: item.activityName || '',
+        description: item.description || '',
+        activityType: item.activityType || '',
+        status: item.status || 'NOT_STARTED',
+        startTime: item.startTime || null,
+        endTime: item.endTime || null,
+        discountValue: item.discountValue || 0,
+        price: item.price || 0,
+        remark: item.remark || '',
+        minPurchase: item.minPurchase || 1,
+        purchaseLimit: item.purchaseLimit || 1,
+        createTime: item.createTime || null,
+        activityImagePath: item.activityImagePath || item.imagePath || '',
+        packageNames: [], // 存储权益包名称列表
+        packageIds: [],   // 存储权益包ID列表
+        packages: []      // 存储完整的权益包信息
+      })
+    }
+    
+    // 添加权益包信息
+    const existingActivity = activityMap.get(activityId)
+    
+    // 处理不同的权益包数据结构
+    console.log('处理数据项:', item) // 调试信息
+    
+    // 尝试多种可能的字段名称
+    const packageName = item.packageName || item.package_name || item.name || item.packageName
+    const packageId = item.packageId || item.package_id || item.id
+    const packageNames = item.packageNames || item.package_names || item.names
+    const packageIds = item.packageIds || item.package_ids || item.ids
+    const packages = item.packages || item.packageList || item.package_list
+    
+    console.log('提取的字段:', { packageName, packageId, packageNames, packageIds, packages })
+    
+    if (packageName) {
+      // 单个权益包名称
+      if (!existingActivity.packageNames.includes(packageName)) {
+        existingActivity.packageNames.push(packageName)
+        existingActivity.packageIds.push(packageId)
+        existingActivity.packages.push({
+          id: packageId,
+          packageName: packageName,
+          price: item.packagePrice || item.package_price || 0
+        })
+        console.log('添加单个权益包:', packageName)
+      }
+    } else if (packageNames && Array.isArray(packageNames)) {
+      // 权益包名称数组
+      packageNames.forEach((name, index) => {
+        if (name && !existingActivity.packageNames.includes(name)) {
+          existingActivity.packageNames.push(name)
+          if (packageIds && packageIds[index]) {
+            existingActivity.packageIds.push(packageIds[index])
+          }
+          existingActivity.packages.push({
+            id: packageIds ? packageIds[index] : null,
+            packageName: name,
+            price: 0
+          })
+          console.log('添加权益包名称:', name)
+        }
+      })
+    } else if (packages && Array.isArray(packages)) {
+      // 权益包对象数组
+      packages.forEach(pkg => {
+        const pkgName = pkg.packageName || pkg.package_name || pkg.name || pkg.packageName
+        if (pkgName && !existingActivity.packageNames.includes(pkgName)) {
+          existingActivity.packageNames.push(pkgName)
+          existingActivity.packageIds.push(pkg.id || pkg.packageId || pkg.package_id)
+          existingActivity.packages.push({
+            id: pkg.id || pkg.packageId || pkg.package_id,
+            packageName: pkgName,
+            price: pkg.price || 0,
+            ...pkg
+          })
+          console.log('添加权益包对象:', pkgName)
+        }
+      })
+    }
+    
+    // 如果后端直接返回了 packageIds 数组，需要根据ID查找对应的权益包名称
+    if (packageIds && Array.isArray(packageIds) && packageIds.length > 0) {
+      packageIds.forEach(pkgId => {
+        if (pkgId && !existingActivity.packageIds.includes(pkgId)) {
+          existingActivity.packageIds.push(pkgId)
+          // 如果后端没有提供名称，我们暂时用ID作为显示
+          const displayName = `权益包-${pkgId}`
+          if (!existingActivity.packageNames.includes(displayName)) {
+            existingActivity.packageNames.push(displayName)
+            existingActivity.packages.push({
+              id: pkgId,
+              packageName: displayName,
+              price: 0
+            })
+            console.log('添加权益包ID:', pkgId, '显示名称:', displayName)
+          }
+        }
+      })
+    }
+    
+    // 如果后端返回了 packageNames 数组，直接使用
+    if (packageNames && Array.isArray(packageNames) && packageNames.length > 0) {
+      packageNames.forEach((name, index) => {
+        if (name && !existingActivity.packageNames.includes(name)) {
+          existingActivity.packageNames.push(name)
+          // 如果有对应的ID，也添加进去
+          if (packageIds && packageIds[index]) {
+            if (!existingActivity.packageIds.includes(packageIds[index])) {
+              existingActivity.packageIds.push(packageIds[index])
+            }
+          }
+          existingActivity.packages.push({
+            id: packageIds ? packageIds[index] : null,
+            packageName: name,
+            price: 0
+          })
+          console.log('添加权益包名称数组:', name)
+        }
+      })
+    }
+  })
+  
+  // 转换为数组并排序
+  const result = Array.from(activityMap.values())
+  result.sort((a, b) => {
+    // 按创建时间倒序排列
+    if (a.createTime && b.createTime) {
+      return new Date(b.createTime) - new Date(a.createTime)
+    }
+    // 如果没有创建时间，按ID排序
+    return (b.id || 0) - (a.id || 0)
+  })
+  
+  console.log('分组后的数据:', result) // 添加调试日志
+  return result
+}
+
+// 文件变化处理
+const handleFileChange = (file) => {
+  activityForm.file = file.raw
+}
+
+// 文件移除处理
+const handleFileRemove = () => {
+  activityForm.file = null
+}
+
+// 移除现有图片
+const removeExistingImage = () => {
+  activityForm.imagePath = ''
+  activityForm.file = null
+}
+
+// 加载所有权益包数据
+const loadAllPackages = async () => {
+  try {
+    const { queryPackage } = await import('@/api/user')
+    const response = await queryPackage({
+      status: 'ACTIVE',
+      pageNum: 1,
+      pageSize: 1000 // 获取所有权益包
+    })
+    if (response && response.code === 200 && response.data) {
+      const packages = response.data.data || []
+      // 根据权益包名称去重
+      const uniquePackages = deduplicatePackages(packages)
+      console.log('权益包选项数据:', uniquePackages)
+      console.log('第一个权益包:', uniquePackages.length > 0 ? uniquePackages[0] : null)
+      // 直接更新响应式数据，不使用 nextTick
+      packageOptions.value = uniquePackages
+    }
+  } catch (error) {
+    console.error('加载权益包失败:', error)
+    // 确保在错误情况下也重置数据
+    packageOptions.value = []
+  }
+}
+
+// 根据权益包ID获取权益包名称
+const loadPackageNamesByIds = async (packageIds) => {
+  try {
+    const { queryPackage } = await import('@/api/user')
+    const response = await queryPackage({
+      status: 'ACTIVE',
+      pageNum: 1,
+      pageSize: 1000 // 获取所有权益包
+    })
+    
+    if (response && response.code === 200 && response.data) {
+      const packages = response.data.data || []
+      const packageMap = new Map()
+      
+      // 创建权益包ID到名称的映射
+      packages.forEach(pkg => {
+        const pkgName = pkg.packageName || pkg.package_name || pkg.name
+        const pkgId = pkg.id || pkg.packageId || pkg.package_id
+        if (pkgId && pkgName) {
+          packageMap.set(pkgId, pkgName)
+        }
+      })
+      
+      console.log('权益包映射表:', packageMap)
+      
+      // 更新活动表单中的权益包名称
+      const packageNames = packageIds.map(id => packageMap.get(id) || `权益包-${id}`)
+      
+      // 更新活动列表中的权益包名称
+      const activityIndex = activityList.value.findIndex(activity => 
+        activity.packageIds && activity.packageIds.some(id => packageIds.includes(id))
+      )
+      
+      if (activityIndex !== -1) {
+        activityList.value[activityIndex].packageNames = packageNames
+      }
+      
+      console.log('根据ID获取的权益包名称:', packageNames)
+    }
+  } catch (error) {
+    console.error('根据ID获取权益包名称失败:', error)
+  }
+}
+
+// 清理搜索定时器
+const clearPackageSearchTimeout = () => {
+  if (packageSearchTimeout) {
+    clearTimeout(packageSearchTimeout)
+    packageSearchTimeout = null
+  }
+}
+
+// 权益包搜索
+const handlePackageSearch = async (query) => {
+  // 如果正在选择中，不执行搜索
+  if (isSelecting) {
+    return
+  }
+  
+  // 清除之前的定时器
+  clearPackageSearchTimeout()
+  
+  // 如果查询为空，直接加载所有权益包，不设置延迟
+  if (query === '') {
+    await loadAllPackages()
+    return
+  }
+  
+  // 如果查询长度小于2，不执行搜索
+  if (query.length < 2) {
+    return
+  }
+  
+  // 设置防抖延迟
+  packageSearchTimeout = setTimeout(async () => {
+    // 再次检查是否正在选择中
+    if (isSelecting) {
+      return
+    }
+    
+    packageLoading.value = true
+    try {
+      const { queryPackage } = await import('@/api/user')
+      const response = await queryPackage({
+        packageName: query,
+        status: 'ACTIVE',
+        pageNum: 1,
+        pageSize: 100
+      })
+      if (response && response.code === 200 && response.data) {
+        const packages = response.data.data || []
+        console.log('搜索到的权益包:', packages)
+        // 根据权益包名称去重
+        const uniquePackages = deduplicatePackages(packages)
+        console.log('去重后的权益包:', uniquePackages)
+        // 直接更新响应式数据
+        packageOptions.value = uniquePackages
+      }
+    } catch (error) {
+      console.error('搜索权益包失败:', error)
+      // 确保在错误情况下也重置加载状态
+      packageOptions.value = []
+    } finally {
+      packageLoading.value = false
+    }
+  }, 500) // 增加防抖延迟到500ms
+}
+
+// 权益包选择框获得焦点
+const handlePackageFocus = () => {
+  isSelecting = true
+}
+
+// 权益包选择框失去焦点
+const handlePackageBlur = () => {
+  // 延迟重置选择状态，避免在快速操作时出现问题
+  setTimeout(() => {
+    isSelecting = false
+  }, 100)
+}
+
+// 权益包下拉框显示/隐藏变化
+const handlePackageVisibleChange = (visible) => {
+  if (visible) {
+    isSelecting = true
+  } else {
+    // 延迟重置选择状态
+    setTimeout(() => {
+      isSelecting = false
+    }, 100)
+  }
+}
+
+// 同步权益包名称和ID的防抖定时器
+let syncTimeout = null
+
+// 同步权益包名称和ID
+const syncPackageNamesAndIds = () => {
+  // 清除之前的定时器
+  if (syncTimeout) {
+    clearTimeout(syncTimeout)
+  }
+  
+  // 设置防抖延迟
+  syncTimeout = setTimeout(() => {
+    if (activityForm.packageNames && activityForm.packageNames.length > 0) {
+      // 根据选择的权益包名称，找到对应的ID
+      activityForm.packageIds = activityForm.packageNames.map(packageName => {
+        const pkg = packageOptions.value.find(p => 
+          (p.packageName || p.package_name || p.name) === packageName
+        )
+        return pkg ? pkg.id : null
+      }).filter(id => id !== null)
+    } else {
+      activityForm.packageIds = []
+    }
+    console.log('同步后的权益包数据:', {
+      packageNames: activityForm.packageNames,
+      packageIds: activityForm.packageIds
+    })
+  }, 100) // 100ms 防抖延迟
+}
 
 // 格式化时间
 const formatTime = (time) => {
@@ -342,31 +924,73 @@ const handleReset = () => {
 }
 
 // 新增活动
-const handleAdd = () => {
+const handleAdd = async () => {
   dialogTitle.value = '新增活动'
   Object.assign(activityForm, {
     id: null,
     activityName: '',
-    type: null,
-    timeRange: [],
-    startTime: '',
-    endTime: '',
-    rules: '',
     description: '',
-    status: 0,
-    config: ''
+    activityType: null,
+    status: 'NOT_STARTED',
+    startTime: null,
+    endTime: null,
+    discountValue: 0,
+    price: 0,
+    remark: '',
+    minPurchase: 1,
+    purchaseLimit: 1,
+    packageIds: [],
+    packageNames: [],
+    file: null,
+    imagePath: ''
   })
+  
+  // 重置权益包选项
+  packageOptions.value = []
+  // 加载所有权益包数据
+  await loadAllPackages()
+  
   dialogVisible.value = true
 }
 
 // 编辑活动
-const handleEdit = (row) => {
+const handleEdit = async (row) => {
   dialogTitle.value = '编辑活动'
+  
+  // 先显示对话框，避免抖动
+  dialogVisible.value = true
+  
+  try {
+    // 重置权益包选项
+    packageOptions.value = []
+    
+    // 设置表单数据
   Object.assign(activityForm, {
     ...row,
-    timeRange: row.startTime && row.endTime ? [row.startTime, row.endTime] : []
-  })
-  dialogVisible.value = true
+      packageIds: row.packageIds || [],
+      packageNames: row.packageNames || [],
+      file: null,
+      imagePath: row.activityImagePath || ''
+    })
+    
+    // 加载所有权益包数据
+    await loadAllPackages()
+    
+    // 如果有权益包ID但没有名称，需要根据ID获取名称
+    if (row.packageIds && row.packageIds.length > 0 && (!row.packageNames || row.packageNames.length === 0)) {
+      await loadPackageNamesByIds(row.packageIds)
+    }
+    
+    // 确保权益包名称正确回显
+    if (row.packageNames && row.packageNames.length > 0) {
+      // 使用 nextTick 确保在下一个 tick 更新，避免抖动
+      await nextTick()
+      activityForm.packageNames = [...row.packageNames]
+    }
+  } catch (error) {
+    console.error('编辑活动时加载数据失败:', error)
+    ElMessage.error('加载活动数据失败')
+  }
 }
 
 
@@ -376,18 +1000,69 @@ const handleSubmit = async () => {
   try {
     await activityFormRef.value.validate()
     
-    // 验证时间范围
-    if (!activityForm.timeRange || activityForm.timeRange.length !== 2) {
-      ElMessage.error('请选择活动时间范围')
+    // 验证时间
+    if (!activityForm.startTime || !activityForm.endTime) {
+      ElMessage.error('请选择活动开始和结束时间')
       return
     }
     
-    // TODO: 调用后端API保存活动
+    // 验证时间逻辑
+    const startTime = new Date(activityForm.startTime)
+    const endTime = new Date(activityForm.endTime)
+    
+    if (startTime >= endTime) {
+      ElMessage.error('结束时间必须晚于开始时间')
+      return
+    }
+    
+    // 构建请求参数
+    const requestData = {
+      activityName: activityForm.activityName,
+      description: activityForm.description,
+      activityType: activityForm.activityType,
+      status: activityForm.status,
+      startTime: activityForm.startTime,
+      endTime: activityForm.endTime,
+      discountValue: activityForm.discountValue,
+      price: activityForm.price,
+      remark: activityForm.remark,
+      minPurchase: activityForm.minPurchase,
+      purchaseLimit: activityForm.purchaseLimit,
+      packageIds: activityForm.packageIds || []
+    }
+    
+    console.log('提交的权益包ID:', activityForm.packageIds)
+    console.log('请求参数:', requestData)
+    
+    // 如果有ID，说明是编辑，否则是新增
+    if (activityForm.id) {
+      requestData.id = activityForm.id
+    }
+    
+    // 构建FormData
+    const formData = new FormData()
+    if (activityForm.file) {
+      formData.append('file', activityForm.file)
+    }
+    
+    // 将请求参数转换为Blob并添加到FormData
+    const requestBlob = new Blob([JSON.stringify(requestData)], { type: 'application/json' })
+    formData.append('request', requestBlob, 'request.json')
+    
+    // 调用保存活动API
+    const { saveActivity } = await import('@/api/user')
+    const response = await saveActivity(formData)
+    
+    if (response.code === 200) {
     ElMessage.success(activityForm.id ? '更新成功' : '新增成功')
     dialogVisible.value = false
     loadActivityList()
+    } else {
+      ElMessage.error(response.message || '保存失败')
+    }
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('保存活动失败:', error)
+    ElMessage.error('保存失败，请稍后重试')
   }
 }
 
@@ -432,8 +1107,15 @@ const loadActivityList = async () => {
     console.log('接口响应数据:', response) // 添加调试日志
     
     if (response.code === 200 && response.data) {
-      activityList.value = response.data.data || []
-      pagination.total = response.data.total || 0
+      // 后端返回的数据结构是 data.data，需要适配
+      const resultData = response.data.data || response.data.records || []
+      const total = response.data.total || 0
+      
+      // 对数据进行分组处理，相同活动ID的数据合并到同一行
+      const groupedData = groupActivityData(resultData)
+      
+      activityList.value = groupedData
+      pagination.total = total
     } else {
       ElMessage.error(response.message || '获取活动列表失败')
     }
@@ -445,8 +1127,21 @@ const loadActivityList = async () => {
   }
 }
 
+// 监听权益包名称变化，自动同步ID
+watch(() => activityForm.packageNames, () => {
+  syncPackageNamesAndIds()
+}, { deep: true })
+
 onMounted(() => {
   loadActivityList()
+})
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  clearPackageSearchTimeout()
+  if (syncTimeout) {
+    clearTimeout(syncTimeout)
+  }
 })
 </script>
 
@@ -469,5 +1164,62 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 20px;
+}
+
+.existing-image {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.image-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.image-name {
+  font-size: 12px;
+  color: #666;
+  word-break: break-all;
+}
+
+/* 权益包选择样式 */
+.el-form-item__help {
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+/* 权益包选项样式 */
+.el-select-dropdown__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 权益包标签样式 */
+.package-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.package-tag {
+  margin: 0;
+}
+
+.package-count {
+  color: #909399;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.text-muted {
+  color: #909399;
+  font-style: italic;
 }
 </style>

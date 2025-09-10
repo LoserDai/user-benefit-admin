@@ -202,4 +202,13 @@ export const queryActivityList = (request) => {
   return api.post('/activity/queryActivityList', request)
 }
 
+// 保存权益活动
+// FormData: 包含文件和活动信息的表单数据
+// BaseResponse<Integer>: 保存结果
+export const saveActivity = (formData) => {
+  return api.post('/activity/saveActivity', formData, {
+    // 让浏览器自动设置multipart/form-data及boundary
+  })
+}
+
 export default api
