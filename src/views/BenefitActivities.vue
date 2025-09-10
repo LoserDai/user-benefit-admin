@@ -16,19 +16,23 @@
           </el-input>
         </el-col>
         <el-col :span="4">
-          <el-select v-model="searchForm.status" placeholder="活动状态" clearable>
-            <el-option label="进行中" :value="1" />
-            <el-option label="已结束" :value="2" />
-            <el-option label="未开始" :value="0" />
-            <el-option label="已暂停" :value="3" />
+          <el-select v-model="searchForm.activityStatus" placeholder="活动状态" clearable>
+            <el-option 
+              v-for="(status, key) in ActivityStatus" 
+              :key="key"
+              :label="status.label" 
+              :value="status.value" 
+            />
           </el-select>
         </el-col>
-        <el-col :span="6">
-          <el-select v-model="searchForm.type" placeholder="活动类型" clearable>
-            <el-option label="积分翻倍" :value="1" />
-            <el-option label="限时折扣" :value="2" />
-            <el-option label="新用户专享" :value="3" />
-            <el-option label="节日特惠" :value="4" />
+        <el-col :span="4">
+          <el-select v-model="searchForm.activityType" placeholder="活动类型" clearable>
+            <el-option 
+              v-for="(type, key) in ActivityType" 
+              :key="key"
+              :label="type.label" 
+              :value="type.value" 
+            />
           </el-select>
         </el-col>
         <el-col :span="8">
@@ -53,10 +57,10 @@
       <el-table :data="activityList" stripe v-loading="loading" border>
         <el-table-column prop="id" label="活动ID" width="100" />
         <el-table-column prop="activityName" label="活动名称" width="200" />
-        <el-table-column prop="type" label="活动类型" width="120">
+        <el-table-column prop="activityType" label="活动类型" width="120">
           <template #default="scope">
-            <el-tag :type="getTypeTag(scope.row.type)">
-              {{ getTypeLabel(scope.row.type) }}
+            <el-tag :type="getActivityTypeTag(scope.row.activityType)">
+              {{ getActivityTypeLabel(scope.row.activityType) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -72,8 +76,8 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
-            <el-tag :type="getStatusTag(scope.row.status)">
-              {{ getStatusLabel(scope.row.status) }}
+            <el-tag :type="getActivityStatusTag(scope.row.status)">
+              {{ getActivityStatusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -82,18 +86,9 @@
             {{ formatTime(scope.row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="100" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
-            <el-button 
-              size="small" 
-              :type="scope.row.status === 1 ? 'warning' : 'success'"
-              @click="handleToggleStatus(scope.row)"
-              v-if="scope.row.status !== 2"
-            >
-              {{ scope.row.status === 1 ? '暂停' : '启动' }}
-            </el-button>
-            <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -191,12 +186,28 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { queryActivityList } from '@/api/user'
+
+// 活动状态枚举
+const ActivityStatus = {
+  NOT_STARTED: { label: '未开始', value: 'NOT_STARTED' },
+  ONGOING: { label: '进行中', value: 'ONGOING' },
+  ENDED: { label: '已结束', value: 'ENDED' },
+  CANCELED: { label: '已取消', value: 'CANCELED' }
+}
+
+// 活动类型枚举
+const ActivityType = {
+  PERCENT_DISCOUNT: { label: '百分比折扣', value: 'PERCENT_DISCOUNT' },
+  AMOUNT_DISCOUNT: { label: '金额折扣', value: 'AMOUNT_DISCOUNT' },
+  GIFT: { label: '买赠活动', value: 'GIFT' }
+}
 
 // 搜索表单
 const searchForm = reactive({
   activityName: '',  // 活动名称
-  status: null,      // 活动状态
-  type: null         // 活动类型
+  activityStatus: null,      // 活动状态
+  activityType: null         // 活动类型
 })
 
 // 活动列表数据
@@ -245,49 +256,44 @@ const activityFormRules = {
   ]
 }
 
-// 获取类型标签类型
-const getTypeTag = (type) => {
+// 获取活动类型标签类型
+const getActivityTypeTag = (type) => {
   const tagMap = {
-    1: 'primary',   // 积分翻倍
-    2: 'success',   // 限时折扣
-    3: 'warning',   // 新用户专享
-    4: 'info'       // 节日特惠
+    'PERCENT_DISCOUNT': 'primary',
+    'AMOUNT_DISCOUNT': 'success',
+    'GIFT': 'warning'
   }
   return tagMap[type] || ''
 }
 
-// 获取类型标签文本
-const getTypeLabel = (type) => {
-  const labelMap = {
-    1: '积分翻倍',
-    2: '限时折扣',
-    3: '新用户专享',
-    4: '节日特惠'
-  }
-  return labelMap[type] || '未知'
+// 获取活动类型标签文本
+const getActivityTypeLabel = (type) => {
+  const typeObj = Object.values(ActivityType).find(t => t.value === type)
+  return typeObj ? typeObj.label : '未知类型'
 }
 
-// 获取状态标签类型
-const getStatusTag = (status) => {
+// 获取活动状态标签类型
+const getActivityStatusTag = (status) => {
   const tagMap = {
-    0: 'info',      // 未开始
-    1: 'success',   // 进行中
-    2: 'danger',    // 已结束
-    3: 'warning'    // 已暂停
+    'NOT_STARTED': 'info',      // 未开始
+    'ONGOING': 'success',       // 进行中
+    'ENDED': 'warning',         // 已结束
+    'CANCELED': 'danger'        // 已取消
   }
   return tagMap[status] || ''
 }
 
-// 获取状态标签文本
-const getStatusLabel = (status) => {
-  const labelMap = {
-    0: '未开始',
-    1: '进行中',
-    2: '已结束',
-    3: '已暂停'
+// 获取活动状态标签文本
+const getActivityStatusLabel = (status) => {
+  const statusMap = {
+    'NOT_STARTED': '未开始',
+    'ONGOING': '进行中',
+    'ENDED': '已结束',
+    'CANCELED': '已取消'
   }
-  return labelMap[status] || '未知'
+  return statusMap[status] || '未知状态'
 }
+
 
 // 格式化时间
 const formatTime = (time) => {
@@ -329,8 +335,8 @@ const handleSearch = () => {
 const handleReset = () => {
   Object.assign(searchForm, {
     activityName: '',
-    status: null,
-    type: null
+    activityStatus: null,
+    activityType: null
   })
   handleSearch()
 }
@@ -363,50 +369,7 @@ const handleEdit = (row) => {
   dialogVisible.value = true
 }
 
-// 切换状态
-const handleToggleStatus = async (row) => {
-  try {
-    const newStatus = row.status === 1 ? 3 : 1
-    const action = newStatus === 1 ? '启动' : '暂停'
-    
-    await ElMessageBox.confirm(
-      `确定要${action}活动"${row.activityName}"吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    // TODO: 调用后端API更新状态
-    row.status = newStatus
-    ElMessage.success(`${action}成功`)
-  } catch (error) {
-    // 用户取消操作
-  }
-}
 
-// 删除活动
-const handleDelete = async (row) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除活动"${row.activityName}"吗？此操作不可恢复！`,
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    // TODO: 调用后端API删除活动
-    ElMessage.success('删除成功')
-    loadActivityList()
-  } catch (error) {
-    // 用户取消操作
-  }
-}
 
 // 提交表单
 const handleSubmit = async () => {
@@ -444,41 +407,40 @@ const handleCurrentChange = (page) => {
 const loadActivityList = async () => {
   loading.value = true
   try {
-    // TODO: 调用后端API获取活动列表
-    // 模拟数据
-    setTimeout(() => {
-      activityList.value = [
-        {
-          id: 1,
-          activityName: '双11积分翻倍活动',
-          type: 1,
-          startTime: '2024-11-01 00:00:00',
-          endTime: '2024-11-11 23:59:59',
-          status: 1,
-          rules: '活动期间所有消费积分翻倍',
-          description: '双11购物节特别活动',
-          config: '{"multiplier": 2}',
-          createTime: new Date()
-        },
-        {
-          id: 2,
-          activityName: '新用户专享优惠',
-          type: 3,
-          startTime: '2024-01-01 00:00:00',
-          endTime: '2024-12-31 23:59:59',
-          status: 1,
-          rules: '新用户注册后7天内享受9折优惠',
-          description: '新用户专享优惠活动',
-          config: '{"discount": 0.9, "validDays": 7}',
-          createTime: new Date()
-        }
-      ]
-      pagination.total = 2
-      loading.value = false
-    }, 500)
+    // 构建请求参数，只包含有效值
+    const request = {
+      pageNum: pagination.currentPage,
+      pageSize: pagination.pageSize
+    }
+    
+    // 只添加非空值，避免后端反序列化错误
+    if (searchForm.activityName && searchForm.activityName.trim()) {
+      request.activityName = searchForm.activityName.trim()
+    }
+    
+    if (searchForm.activityStatus !== null && searchForm.activityStatus !== '' && searchForm.activityStatus !== undefined) {
+      request.status = searchForm.activityStatus
+    }
+    
+    if (searchForm.activityType !== null && searchForm.activityType !== '' && searchForm.activityType !== undefined) {
+      request.activityType = searchForm.activityType
+    }
+    
+    console.log('请求参数:', request) // 添加调试日志
+
+    const response = await queryActivityList(request)
+    console.log('接口响应数据:', response) // 添加调试日志
+    
+    if (response.code === 200 && response.data) {
+      activityList.value = response.data.data || []
+      pagination.total = response.data.total || 0
+    } else {
+      ElMessage.error(response.message || '获取活动列表失败')
+    }
   } catch (error) {
     console.error('获取活动列表失败:', error)
     ElMessage.error('获取活动列表失败，请稍后重试')
+  } finally {
     loading.value = false
   }
 }

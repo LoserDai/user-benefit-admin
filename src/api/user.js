@@ -195,4 +195,11 @@ export const updatePackage = (formData) => {
   })
 }
 
+// 分页查询权益活动
+// BenefitActivityRequest: 权益活动查询参数
+// PageResult<BenefitActivityVo>: 分页结果
+export const queryActivityList = (request) => {
+  return api.post('/activity/queryActivityList', request)
+}
+
 export default api
