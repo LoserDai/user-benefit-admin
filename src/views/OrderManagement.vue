@@ -118,27 +118,15 @@
             <el-button 
               v-if="scope.row.status === 0"
               size="small" 
-              type="success" 
-              @click="handleConfirmPayment(scope.row)"
-            >确认支付</el-button>
-            <el-button 
-              v-if="scope.row.status === 1"
-              size="small" 
-              type="primary" 
-              @click="handleCompleteOrder(scope.row)"
-            >完成订单</el-button>
-            <el-button 
-              v-if="scope.row.status === 0"
-              size="small" 
               type="danger" 
               @click="handleCancelOrder(scope.row)"
             >取消订单</el-button>
             <el-button 
-              v-if="scope.row.status === 1 || scope.row.status === 3"
+              v-if="scope.row.status === 1"
               size="small" 
-              type="warning" 
-              @click="handleRefund(scope.row)"
-            >申请退款</el-button>
+              type="primary" 
+              @click="handleShipOrder(scope.row)"
+            >已发货</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -166,7 +154,11 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="订单号">{{ selectedOrder.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="用户账号">{{ selectedOrder.account || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="地址ID">{{ selectedOrder.addressId || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="收货人">{{ selectedOrder.receiverName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="收货电话">{{ selectedOrder.receiverPhone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="收货地址" :span="2">
+          {{ formatAddress(selectedOrder) }}
+        </el-descriptions-item>
         <el-descriptions-item label="订单状态">
           <el-tag :type="getStatusTag(selectedOrder.status)">
             {{ getStatusLabel(selectedOrder.status) }}
@@ -175,6 +167,13 @@
         <el-descriptions-item label="总价">{{ selectedOrder.totalPoint || 0 }}积分</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDateTime(selectedOrder.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDateTime(selectedOrder.updateTime) }}</el-descriptions-item>
+        <el-descriptions-item 
+          v-if="selectedOrder.cancelReason" 
+          label="取消原因" 
+          :span="2"
+        >
+          {{ formatCancelReason(selectedOrder.cancelReason) }}
+        </el-descriptions-item>
       </el-descriptions>
 
       <!-- 商品列表 -->
@@ -237,50 +236,38 @@
       </div>
     </el-dialog>
 
-    <!-- 退款对话框 -->
+    <!-- 取消订单对话框 -->
     <el-dialog
-      v-model="refundDialogVisible"
-      title="申请退款"
+      v-model="cancelDialogVisible"
+      title="取消订单"
       width="500px"
     >
       <el-form
-        ref="refundFormRef"
-        :model="refundForm"
-        :rules="refundFormRules"
+        ref="cancelFormRef"
+        :model="cancelForm"
+        :rules="cancelFormRules"
         label-width="100px"
       >
-        <el-form-item label="退款积分" prop="amount">
-          <el-input-number
-            v-model="refundForm.amount"
-            :min="1"
-            :max="selectedOrder.totalPoint"
-            :precision="0"
-            :step="1"
-            style="width: 100%"
-          />
+        <el-form-item label="订单号">
+          <el-input v-model="cancelForm.orderNo" disabled />
         </el-form-item>
-        <el-form-item label="退款原因" prop="reason">
-          <el-select v-model="refundForm.reason" placeholder="请选择退款原因" style="width: 100%">
-            <el-option label="商品质量问题" value="quality_issue" />
-            <el-option label="服务不满意" value="service_unsatisfied" />
-            <el-option label="重复购买" value="duplicate_purchase" />
-            <el-option label="其他原因" value="other" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="详细说明" prop="description">
+        <el-form-item label="取消原因" prop="cancelReason">
           <el-input
-            v-model="refundForm.description"
+            v-model="cancelForm.cancelReason"
             type="textarea"
-            :rows="3"
-            placeholder="请输入详细说明"
+            :rows="4"
+            placeholder="请输入取消订单的原因"
+            maxlength="200"
+            show-word-limit
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="refundDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleRefundSubmit">确定</el-button>
+        <el-button @click="cancelDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCancelSubmit" :loading="cancelLoading">确定取消</el-button>
       </template>
     </el-dialog>
+
   </div>
 </template>
 
@@ -288,7 +275,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, User } from '@element-plus/icons-vue'
-import { queryOrderMain } from '@/api/user'
+import { queryOrderMain, cancelOrderMain, shippingOrderMain } from '@/api/user'
 
 // 搜索表单
 const searchForm = reactive({
@@ -314,29 +301,24 @@ const pagination = reactive({
 const detailsDialogVisible = ref(false)
 const selectedOrder = ref({})
 
-// 退款对话框
-const refundDialogVisible = ref(false)
-const refundFormRef = ref(null)
-const refundForm = reactive({
-  orderId: '',
-  amount: 0,
-  reason: '',
-  description: ''
+// 取消订单对话框
+const cancelDialogVisible = ref(false)
+const cancelFormRef = ref(null)
+const cancelLoading = ref(false)
+const cancelForm = reactive({
+  orderNo: '',
+  userId: null,
+  cancelReason: ''
 })
 
-// 表单验证规则
-const refundFormRules = {
-  amount: [
-    { required: true, message: '请输入退款积分', trigger: 'blur' },
-    { type: 'number', min: 1, message: '积分必须大于0', trigger: 'blur' }
-  ],
-  reason: [
-    { required: true, message: '请选择退款原因', trigger: 'change' }
-  ],
-  description: [
-    { required: true, message: '请输入详细说明', trigger: 'blur' }
+// 取消订单表单验证规则
+const cancelFormRules = {
+  cancelReason: [
+    { required: true, message: '请输入取消原因', trigger: 'blur' },
+    { min: 5, message: '取消原因至少需要5个字符', trigger: 'blur' }
   ]
 }
+
 
 
 
@@ -403,6 +385,31 @@ const formatDateTime = (dateTime) => {
   }
 }
 
+// 格式化收货地址
+const formatAddress = (order) => {
+  if (!order) return '-'
+  
+  const parts = []
+  if (order.province) parts.push(order.province)
+  if (order.city) parts.push(order.city)
+  if (order.district) parts.push(order.district)
+  if (order.detailAddress) parts.push(order.detailAddress)
+  
+  return parts.length > 0 ? parts.join('') : '-'
+}
+
+// 格式化取消原因
+const formatCancelReason = (cancelReason) => {
+  if (!cancelReason) return '-'
+  
+  // 特殊值映射
+  const reasonMap = {
+    'TIMEOUT CANCEL': '订单超时'
+  }
+  
+  return reasonMap[cancelReason] || cancelReason
+}
+
 // 合并相同订单号的数据
 const mergeOrdersByOrderNo = (orders) => {
   const orderMap = new Map()
@@ -430,10 +437,17 @@ const mergeOrdersByOrderNo = (orders) => {
         account: order.account,
         orderId: order.orderId,
         addressId: order.addressId,
+        receiverName: order.receiverName,
+        receiverPhone: order.receiverPhone,
+        province: order.province,
+        city: order.city,
+        district: order.district,
+        detailAddress: order.detailAddress,
         status: order.status,
         totalPoint: order.totalPoint,
         createTime: order.createTime,
         updateTime: order.updateTime,
+        cancelReason: order.cancelReason,
         items: [{
           itemName: order.itemName,
           itemType: order.itemType,
@@ -473,77 +487,87 @@ const handleViewDetails = (row) => {
   detailsDialogVisible.value = true
 }
 
-// 确认支付
-const handleConfirmPayment = (row) => {
-  ElMessageBox.confirm(
-    `确定要确认订单 "${row.orderNo}" 的支付吗？`,
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    row.status = 1
-    row.payTime = new Date().toLocaleString()
-    ElMessage.success('支付确认成功')
-  })
-}
-
-// 完成订单
-const handleCompleteOrder = (row) => {
-  ElMessageBox.confirm(
-    `确定要完成订单 "${row.orderNo}" 吗？`,
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).then(() => {
-    row.status = 3
-    row.completeTime = new Date().toLocaleString()
-    ElMessage.success('订单完成成功')
-  })
-}
 
 // 取消订单
 const handleCancelOrder = (row) => {
+  // 设置表单数据
+  cancelForm.orderNo = row.orderNo
+  cancelForm.userId = row.userId
+  cancelForm.cancelReason = ''
+  
+  // 显示取消订单对话框
+  cancelDialogVisible.value = true
+}
+
+// 已发货
+const handleShipOrder = (row) => {
   ElMessageBox.confirm(
-    `确定要取消订单 "${row.orderNo}" 吗？`,
+    `确定要将订单 "${row.orderNo}" 标记为已发货吗？`,
     '提示',
     {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     }
-  ).then(() => {
-    row.status = 4
-    ElMessage.success('订单取消成功')
+  ).then(async () => {
+    try {
+      // 调用发货API
+      const response = await shippingOrderMain({
+        orderNo: row.orderNo,
+        userId: row.userId
+      })
+      
+      if (response && response.code === 200) {
+        ElMessage.success('订单发货成功')
+        // 重新加载订单列表以获取最新数据
+        loadOrderList()
+      } else {
+        ElMessage.error(response?.message || '订单发货失败')
+      }
+    } catch (error) {
+      console.error('订单发货失败:', error)
+      ElMessage.error('订单发货失败')
+    }
+  }).catch(() => {
+    // 用户取消操作
   })
 }
 
-// 申请退款
-const handleRefund = (row) => {
-  refundForm.orderId = row.orderId
-  refundForm.amount = row.totalPoint
-  refundForm.reason = ''
-  refundForm.description = ''
-  refundDialogVisible.value = true
-}
-
-// 提交退款
-const handleRefundSubmit = async () => {
+// 提交取消订单
+const handleCancelSubmit = async () => {
   try {
-    await refundFormRef.value.validate()
-    // 这里调用退款API
-    ElMessage.success('退款申请提交成功')
-    refundDialogVisible.value = false
-    loadOrderList()
+    // 表单验证
+    await cancelFormRef.value.validate()
+    
+    cancelLoading.value = true
+    
+    // 调用取消订单API
+    const response = await cancelOrderMain({
+      orderNo: cancelForm.orderNo,
+      userId: cancelForm.userId,
+      cancelReason: cancelForm.cancelReason
+    })
+    
+    if (response && response.code === 200) {
+      ElMessage.success('订单取消成功')
+      cancelDialogVisible.value = false
+      // 重新加载订单列表
+      loadOrderList()
+    } else {
+      ElMessage.error(response?.message || '取消订单失败')
+    }
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('取消订单失败:', error)
+    if (error.message) {
+      ElMessage.error(error.message)
+    } else {
+      ElMessage.error('取消订单失败')
+    }
+  } finally {
+    cancelLoading.value = false
   }
 }
+
 
 // 分页大小改变
 const handleSizeChange = (size) => {

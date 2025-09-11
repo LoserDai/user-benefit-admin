@@ -96,6 +96,20 @@ export const queryOrderMain = (request) => {
   return api.post('/orderMain/queryOrderMain', request)
 }
 
+// 取消订单
+// CancelOrderRequest: 取消订单请求参数
+// BaseResponse<Integer>: 取消结果
+export const cancelOrderMain = (request) => {
+  return api.post('/orderMain/cancelOrderMain', request)
+}
+
+// 订单发货
+// ShippingOrderMainRequest: 订单发货请求参数
+// BaseResponse<Integer>: 发货结果
+export const shippingOrderMain = (request) => {
+  return api.post('/orderMain/shippingOrderMain', request)
+}
+
 // 分页查询用户列表
 // UserRequest: 用户查询参数
 // PageResult<UserVo>: 分页结果
